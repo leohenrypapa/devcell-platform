@@ -5,3 +5,5 @@ pydantic
 httpx
 chromadb
 sentence-transformers
+pytest
+pytest-asyncio
