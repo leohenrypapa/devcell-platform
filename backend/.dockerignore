@@ -1,0 +1,10 @@
+.venv
+__pycache__
+*.pyc
+devcell.db
+.git
+node_modules
+dist
+tests
+.env
+*.log

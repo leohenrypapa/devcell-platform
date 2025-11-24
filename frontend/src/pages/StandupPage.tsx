@@ -1,0 +1,508 @@
+import React, { useState, useEffect } from "react";
+import { useUser } from "../context/UserContext";
+
+type StandupEntry = {
+  id: number;
+  name: string;
+  yesterday: string;
+  today: string;
+  blockers: string;
+  created_at: string;
+  project_id?: number | null;
+  project_name?: string | null;
+};
+
+type StandupListResponse = {
+  items: StandupEntry[];
+};
+
+type StandupSummaryResponse = {
+  summary: string;
+  count: number;
+};
+
+type Project = {
+  id: number;
+  name: string;
+  description: string;
+  owner: string;
+  status: "planned" | "active" | "blocked" | "done";
+  created_at: string;
+};
+
+type ProjectListResponse = {
+  items: Project[];
+};
+
+const StandupPage: React.FC = () => {
+  const { user, isAuthenticated, token } = useUser();
+
+  const loggedInName = user?.username ?? "";
+  const [showMineOnly, setShowMineOnly] = useState(false);
+  const isAdmin = user?.role === "admin";
+  const [editingId, setEditingId] = useState<number | null>(null);
+
+  const [yesterday, setYesterday] = useState("");
+  const [today, setToday] = useState("");
+  const [blockers, setBlockers] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [entries, setEntries] = useState<StandupEntry[]>([]);
+  const [loadingEntries, setLoadingEntries] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [summary, setSummary] = useState<string | null>(null);
+  const [summaryCount, setSummaryCount] = useState<number | null>(null);
+  const [loadingSummary, setLoadingSummary] = useState(false);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
+
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
+  const [loadingProjects, setLoadingProjects] = useState(false);
+
+  const [selectedDate, setSelectedDate] = useState<string>(() => {
+    return new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  });
+
+  const backendBase = (import.meta as any).env.VITE_BACKEND_BASE_URL || "http://localhost:9000";
+
+  const loadStandupsForDate = async (dateStr: string) => {
+    setLoadingEntries(true);
+    setError(null);
+    try {
+      const res = await fetch(
+        `${backendBase}/api/standup/by-date?date=${encodeURIComponent(dateStr)}`
+      );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data: StandupListResponse = await res.json();
+      setEntries(data.items || []);
+    } catch (err) {
+      console.error(err);
+      setError("Failed to load standups.");
+    } finally {
+      setLoadingEntries(false);
+    }
+  };
+
+  const loadProjects = async () => {
+    setLoadingProjects(true);
+    try {
+      const res = await fetch(`${backendBase}/api/projects`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data: ProjectListResponse = await res.json();
+      setProjects(data.items || []);
+    } catch (err) {
+      console.error(err);
+      // not fatal
+    } finally {
+      setLoadingProjects(false);
+    }
+  };
+
+  useEffect(() => {
+    loadStandupsForDate(selectedDate);
+    loadProjects();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleDateChange = (value: string) => {
+    setSelectedDate(value);
+    loadStandupsForDate(value);
+  };
+
+  const handleSubmit = async () => {
+    if (!isAuthenticated || !token) {
+      alert("You must be signed in to submit a standup.");
+      return;
+    }
+    if (!today.trim()) {
+      alert("'Today' field is required.");
+      return;
+    }
+
+    setSubmitting(true);
+    setError(null);
+    try {
+      const body: any = {
+        name: loggedInName || "Unknown", // backend will override anyway
+        yesterday,
+        today,
+        blockers,
+      };
+      if (selectedProjectId !== null) {
+        body.project_id = selectedProjectId;
+      }
+
+      let url = `${backendBase}/api/standup`;
+      let method: "POST" | "PUT" = "POST";
+      if (editingId !== null) {
+        url = `${backendBase}/api/standup/${editingId}`;
+        method = "PUT";
+      }
+
+      const res = await fetch(url, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      await loadStandupsForDate(selectedDate);
+
+      setYesterday("");
+      setToday("");
+      setBlockers("");
+      setSelectedProjectId(null);
+      setEditingId(null);
+    } catch (err) {
+      console.error(err);
+      setError("Failed to submit standup.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleGenerateSummary = async () => {
+    setLoadingSummary(true);
+    setSummaryError(null);
+    setSummary(null);
+    setSummaryCount(null);
+
+    try {
+      const res = await fetch(`${backendBase}/api/standup/summary`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data: StandupSummaryResponse = await res.json();
+      setSummary(data.summary);
+      setSummaryCount(data.count);
+    } catch (err) {
+      console.error(err);
+      setSummaryError("Failed to generate summary.");
+    } finally {
+      setLoadingSummary(false);
+    }
+  };
+
+  const handleCopySummary = () => {
+    if (!summary) return;
+
+    const header = `Daily Standup Summary (today)\nBased on ${
+      summaryCount ?? 0
+    } standup entries.\n\n`;
+    const text = header + summary;
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).catch((err) => {
+        console.error("Failed to copy:", err);
+        alert("Copy failed. You can still manually select and copy the text.");
+      });
+    } else {
+      // Fallback
+      alert("Clipboard API not available. Please select and copy manually.");
+    }
+  };
+
+  const handleDeleteStandup = async (id: number) => {
+    if (!isAuthenticated || !token) {
+      alert("You must be signed in to delete a standup.");
+      return;
+    }
+    const confirmed = window.confirm("Delete this standup entry?");
+    if (!confirmed) return;
+
+    try {
+      const res = await fetch(`${backendBase}/api/standup/${id}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!res.ok) {
+        console.error("Delete failed:", res.status);
+        alert("Failed to delete standup.");
+        return;
+      }
+
+      // Reload current date's standups
+      await loadStandupsForDate(selectedDate);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to delete standup.");
+    }
+  };
+
+  const handleEditStandup = (entry: StandupEntry) => {
+    setYesterday(entry.yesterday || "");
+    setToday(entry.today || "");
+    setBlockers(entry.blockers || "");
+    setSelectedProjectId(entry.project_id ?? null);
+    setEditingId(entry.id);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const isToday = selectedDate === new Date().toISOString().slice(0, 10);
+  const displayEntries = showMineOnly && loggedInName
+    ? entries.filter((e) => e.name === loggedInName)
+    : entries;
+
+  return (
+    <div>
+      <h1>Standups</h1>
+      <p>Submit your daily update and browse standups by date.</p>
+
+      <div style={{ marginTop: "0.5rem", marginBottom: "1rem" }}>
+        <label>
+          View standups for date:&nbsp;
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={(e) => handleDateChange(e.target.value)}
+          />
+        </label>
+      </div>
+
+      <div
+        style={{
+          marginTop: "1rem",
+          padding: "1rem",
+          border: "1px solid #ccc",
+          borderRadius: "4px",
+          maxWidth: "700px",
+        }}
+      >
+        <h2>{editingId ? "Edit Standup" : "Submit Standup"}</h2>
+        <p style={{ fontSize: "0.9rem", opacity: 0.7 }}>
+          Logged in as <strong>{loggedInName || "Unknown user"}</strong>.
+          Submissions are always recorded with your account and today&apos;s date/time.
+        </p>
+
+        <div style={{ marginBottom: "0.5rem" }}>
+          <label>
+            Project (optional)
+            <select
+              value={selectedProjectId ?? ""}
+              onChange={(e) => {
+                const val = e.target.value;
+                setSelectedProjectId(val === "" ? null : Number(val));
+              }}
+              style={{ width: "100%", marginTop: "0.25rem" }}
+              disabled={loadingProjects || projects.length === 0}
+            >
+              <option value="">
+                {loadingProjects
+                  ? "Loading projects..."
+                  : projects.length === 0
+                  ? "No projects available"
+                  : "None"}
+              </option>
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} [{p.status}]
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <div style={{ marginBottom: "0.5rem" }}>
+          <label>
+            Yesterday
+            <textarea
+              rows={2}
+              value={yesterday}
+              onChange={(e) => setYesterday(e.target.value)}
+              style={{ width: "100%", marginTop: "0.25rem" }}
+            />
+          </label>
+        </div>
+        <div style={{ marginBottom: "0.5rem" }}>
+          <label>
+            Today (required)
+            <textarea
+              rows={2}
+              value={today}
+              onChange={(e) => setToday(e.target.value)}
+              style={{ width: "100%", marginTop: "0.25rem" }}
+            />
+          </label>
+        </div>
+        <div style={{ marginBottom: "0.5rem" }}>
+          <label>
+            Blockers
+            <textarea
+              rows={2}
+              value={blockers}
+              onChange={(e) => setBlockers(e.target.value)}
+              style={{ width: "100%", marginTop: "0.25rem" }}
+            />
+          </label>
+        </div>
+        <button onClick={handleSubmit} disabled={submitting}>
+          {submitting
+            ? editingId
+              ? "Updating..."
+              : "Submitting..."
+            : editingId
+            ? "Update Standup"
+            : "Submit Standup"}
+        </button>
+        {editingId !== null && (
+          <button
+            type="button"
+            onClick={() => {
+              setEditingId(null);
+              setYesterday("");
+              setToday("");
+              setBlockers("");
+              setSelectedProjectId(null);
+            }}
+            style={{ marginLeft: "0.5rem" }}
+          >
+            Cancel Edit
+          </button>
+        )}
+        {error && (
+          <div style={{ marginTop: "0.5rem", color: "red" }}>{error}</div>
+        )}
+      </div>
+
+      <div style={{ marginTop: "2rem" }}>
+        <h2>
+          Standups for {selectedDate}
+          {!isToday && " (historical view)"}
+        </h2>
+
+        <div style={{ marginBottom: "0.5rem", fontSize: "0.9rem" }}>
+          <label>
+            <input
+              type="checkbox"
+              checked={showMineOnly}
+              onChange={(e) => setShowMineOnly(e.target.checked)}
+              style={{ marginRight: "0.25rem" }}
+            />
+            Show only my standups ({loggedInName || "not signed in"})
+          </label>
+        </div>
+
+        {loadingEntries ? (
+          <p>Loading...</p>
+        ) : displayEntries.length === 0 ? (
+          <p>No standups recorded for this date.</p>
+        ) : (
+          <ul style={{ listStyle: "none", padding: 0 }}>
+            {displayEntries.map((e) => (
+              <li
+                key={e.id}
+                style={{
+                  border: "1px solid #ddd",
+                  borderRadius: "4px",
+                  padding: "0.75rem",
+                  marginBottom: "0.5rem",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "baseline",
+                    gap: "0.5rem",
+                  }}
+                >
+                  <div>
+                    <strong>{e.name}</strong>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <span style={{ fontSize: "0.8rem", opacity: 0.7 }}>
+                      {new Date(e.created_at).toLocaleTimeString()}
+                    </span>
+                    {(isAdmin || e.name === loggedInName) && (
+                      <>
+                        <button
+                          onClick={() => handleEditStandup(e)}
+                          style={{ fontSize: "0.75rem" }}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDeleteStandup(e.id)}
+                          style={{ fontSize: "0.75rem" }}
+                        >
+                          Delete
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {e.project_name && (
+                  <div style={{ fontSize: "0.85rem", opacity: 0.8 }}>
+                    Project: <strong>{e.project_name}</strong>
+                  </div>
+                )}
+
+                {e.yesterday && (
+                  <p style={{ marginTop: "0.5rem" }}>
+                    <strong>Yesterday:</strong> {e.yesterday}
+                  </p>
+                )}
+                <p>
+                  <strong>Today:</strong> {e.today}
+                </p>
+                {e.blockers && (
+                  <p>
+                    <strong>Blockers:</strong> {e.blockers}
+                  </p>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <div style={{ marginTop: "2rem" }}>
+        <h2>AI Summary (Today)</h2>
+        <p style={{ fontSize: "0.85rem", opacity: 0.8 }}>
+          This summary always reflects <strong>today&apos;s</strong> standups,
+          regardless of the date selected above.
+        </p>
+        <button onClick={handleGenerateSummary} disabled={loadingSummary}>
+          {loadingSummary ? "Generating..." : "Generate AI Summary"}
+        </button>
+        {summary && (
+          <button
+            onClick={handleCopySummary}
+            style={{ marginLeft: "0.5rem" }}
+          >
+            Copy Summary
+          </button>
+        )}
+        {summaryError && (
+          <div style={{ marginTop: "0.5rem", color: "red" }}>
+            {summaryError}
+          </div>
+        )}
+        {summary && (
+          <div
+            style={{
+              marginTop: "1rem",
+              padding: "1rem",
+              border: "1px solid #ccc",
+              borderRadius: "4px",
+              whiteSpace: "pre-wrap",
+            }}
+          >
+            <p style={{ fontSize: "0.9rem", opacity: 0.8 }}>
+              Based on {summaryCount ?? 0} standup entries.
+            </p>
+            <p>{summary}</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default StandupPage;

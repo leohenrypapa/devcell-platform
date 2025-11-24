@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.python-version
+.venv/
+venv/
+backend/.venv/
+
+# SQLite DB
+devcell.db
+
+# Logs
+*.log
+uvicorn.log
+
+# Node
+node_modules/
+frontend/dist/
+
+# Env
+.env
+.env.*
+
+# OS
+.DS_Store
+
+# VSCode
+.vscode/
