@@ -166,30 +166,36 @@ The main modules are:
 - Login via username + password.
 - User session is stored on the backend and referenced via a token.
 - Frontend keeps track of who is logged in and what their role is (user/admin).
+- Each user has an extended profile:
+  - `display_name`
+  - `job_title`
+  - `team_name`
+  - `rank`
+  - `skills`
+- Users can update their own profile and change their password via the UI
+  (backed by `PUT /api/auth/me` and `PUT /api/auth/change_password`).
 
 ### 7.2 Admin
 
 Admin-only features:
 
-- `/admin` page lists all users.
+- `/admin` page lists all users with full profile fields:
+  - username, role, display name, job title, team, rank, skills, active state.
 - Create new users:
-  - Set username
-  - Set password
-  - Choose role (`user` or `admin`)
+  - Set username and password.
+  - Choose role (`user` or `admin`).
+  - Optionally set profile metadata in one step.
+- Manage existing users:
+  - Toggle role (`user`/`admin`).
+  - Activate/disable accounts via the `is_active` flag.
+  - View and adjust profile metadata as needed.
 
 Admin powers:
 
 - Can see all standups and projects (same as users, but with ability to manage).
 - Can edit or delete any standup/project.
-- Can onboard new developers by making accounts.
-
----
-
-## 8. Summary
-
-Together, these features provide:
-
-- A shared **communication and tracking platform** for your dev cell.
+- Can onboard new developers by making accounts and assigning roles/teams.
+nd tracking platform** for your dev cell.
 - Tight integration with your own LLM server for:
   - Chat
   - Knowledge search

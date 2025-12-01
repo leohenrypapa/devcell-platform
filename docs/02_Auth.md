@@ -22,6 +22,12 @@ Table: `users`
 - `username` – unique text
 - `password_hash` – hashed password (never store plaintext)
 - `role` – `"user"` or `"admin"`
+- `display_name` – optional friendly display name
+- `job_title` – optional job/position
+- `team_name` – optional team or section
+- `rank` – optional rank/grade
+- `skills` – optional skills string (tags, CSV, etc.)
+- `is_active` – boolean flag (only active users can log in)
 - `created_at` – timestamp
 
 ### 2.2 Sessions
@@ -145,6 +151,26 @@ admin_user: UserPublic = Depends(require_admin)
 2. Checks that `user.role == "admin"`.
 3. If not, raises `HTTPException(status_code=403, detail="Not enough permissions")`.
 
+### 3.6 Profile & Password Management
+
+Two additional auth-related endpoints are provided:
+
+- `PUT /api/auth/me`
+  - Auth required.
+  - Allows the current user to update their own profile fields:
+    - `display_name`
+    - `job_title`
+    - `team_name`
+    - `rank`
+    - `skills`
+  - Does **not** allow changing `username`, `role`, or `is_active`.
+
+- `PUT /api/auth/change_password`
+  - Auth required.
+  - Expects the current password and a new password.
+  - Verifies the current password before updating `password_hash`.
+
+
 ---
 
 ## 4. Frontend Auth Handling
@@ -260,20 +286,24 @@ Capabilities:
 
 ## 6. User & Admin Capabilities Summary
 
-| Action                                 | User | Admin |
-|----------------------------------------|:----:|:-----:|
-| Login / Logout                         |  ✔   |   ✔   |
-| Submit standup                         |  ✔   |   ✔   |
-| Edit own standups                      |  ✔   |   ✔   |
-| Delete own standups                    |  ✔   |   ✔   |
-| Edit/delete anyone’s standups          |      |   ✔   |
-| Create project                         |  ✔   |   ✔   |
-| Edit/delete own projects               |  ✔   |   ✔   |
-| Edit/delete any project                |      |   ✔   |
-| View all standups/projects             |  ✔   |   ✔   |
-| Use chat / knowledge / code review     |  ✔   |   ✔   |
-| List all users                         |      |   ✔   |
-| Create users via Admin UI              |      |   ✔   |
+| Action                                          | User | Admin |
+|-------------------------------------------------|:----:|:-----:|
+| Login / Logout                                  |  ✔   |   ✔   |
+| Update own profile (`/api/auth/me`)             |  ✔   |   ✔   |
+| Change own password                             |  ✔   |   ✔   |
+| Submit standup                                  |  ✔   |   ✔   |
+| Edit own standups                               |  ✔   |   ✔   |
+| Delete own standups                             |  ✔   |   ✔   |
+| Edit/delete anyone’s standups                   |      |   ✔   |
+| Create project                                  |  ✔   |   ✔   |
+| Edit/delete own projects                        |  ✔   |   ✔   |
+| Edit/delete any project                         |      |   ✔   |
+| View all standups/projects                      |  ✔   |   ✔   |
+| Use chat / knowledge / code review              |  ✔   |   ✔   |
+| List all users                                  |      |   ✔   |
+| Create users via Admin UI (with profile fields) |      |   ✔   |
+| Toggle user role (`user` / `admin`)             |      |   ✔   |
+| Activate/disable user accounts (`is_active`)    |      |   ✔   |
 
 ---
 

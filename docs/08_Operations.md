@@ -70,28 +70,28 @@ Most user management can be done through the **Admin page** in the UI.
    - Set `username`
    - Set `password`
    - Choose `role` (`user` or `admin`)
+   - Optionally set profile fields (`display_name`, `job_title`, `team_name`, `rank`, `skills`)
 4. New user will appear in the user list and can log in immediately.
 
 ### 3.2 Changing a User’s Role
 
-The simplest workflow:
+With the Admin UI, you can change roles directly:
 
-- Delete and recreate the user with a new role, or
-- Extend the code later with an explicit “edit user” feature.
+1. Log in as an admin.
+2. Go to `/admin`.
+3. In the user table, use the role toggle/dropdown to switch between `user` and `admin`.
+4. Changes take effect immediately; the user’s next request will use the new role.
 
-For now, if you need to promote a user to admin and you’re comfortable with DB tools:
+### 3.3 Activating / Disabling Users
 
-1. Stop the backend.
-2. Open `devcell.db` with `sqlite3`.
-3. Run:
+Admins can temporarily disable accounts using the `is_active` flag:
 
-   ```sql
-   UPDATE users SET role = 'admin' WHERE username = 'their_username';
-   ```
+1. Log in as an admin.
+2. Go to `/admin`.
+3. In the user table, use the Active/Disabled toggle for the target user.
+4. Disabled users will be prevented from logging in until reactivated.
 
-4. Start backend again.
-
-### 3.3 Password Reset (Manual Approach)
+### 3.4 Password Reset (Manual Approach)
 
 If you do not yet have a UI for password reset, there are two options:
 

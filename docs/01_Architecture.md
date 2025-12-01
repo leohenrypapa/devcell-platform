@@ -98,14 +98,36 @@ This document gives a high-level view of how the pieces fit together so new deve
   - `knowledge_service.py`
     - Hooks for RAG indexing/search (implementation may vary)
 
-### 3.3 Database
+### 3.3 Auth-Related Routes (Conceptual)
+
+- `POST /api/auth/login` – authenticate and create a session token.
+- `POST /api/auth/register` – register a new user (optional in some deployments).
+- `PUT /api/auth/me` – update the current user’s profile fields
+  (`display_name`, `job_title`, `team_name`, `rank`, `skills`).
+- `PUT /api/auth/change_password` – change the current user’s password.
+- Admin-only user management endpoints (exact paths may vary):
+  - Toggle user role (`user` / `admin`).
+  - Activate/disable user accounts via the `is_active` flag.
+  - Create users with full profile metadata.
+
+### 3.4 Database
 
 **SQLite file**: `devcell.db`
 
 Core tables (conceptual):
 
 - `users`
-  - `id`, `username`, `password_hash`, `role`, `created_at`
+  - `id` – integer primary key
+  - `username` – unique text
+  - `password_hash` – hashed password
+  - `role` – `"user"` or `"admin"`
+  - `display_name` – optional friendly name for UI
+  - `job_title` – optional role/position
+  - `team_name` – optional team / section name
+  - `rank` – optional rank/grade
+  - `skills` – optional free-text or comma-separated skills
+  - `is_active` – boolean flag to enable/disable login
+  - `created_at` – timestamp
 - `sessions`
   - `id`, `user_id`, `token`, `expires_at`, `created_at`
 - `standups`
