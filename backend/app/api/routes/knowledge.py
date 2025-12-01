@@ -1,9 +1,16 @@
-from typing import List
+from pydantic import BaseModel
+from typing import Optional, List
 import os
+from pathlib import Path
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException
-
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    UploadFile,
+    File,
+)
 from app.schemas.user import UserPublic
 from app.services.auth_service import get_current_user
 from app.schemas.knowledge import (
@@ -13,63 +20,89 @@ from app.schemas.knowledge import (
     KnowledgeSourceChunk,
 )
 from app.services import knowledge_service
+from app.schemas.knowledge import KnowledgeDocument
+from app.core.llm_client import llm_chat
+
 
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
 
-
 async def call_llm_with_rag(prompt: str) -> str:
     """
-    Call the LLM server with a simple OpenAI-compatible chat API.
+    Try to call the LLM using multiple common API shapes:
 
-    Configure via env vars:
-      - LLM_BASE_URL   (e.g. http://127.0.0.1:8000)
-      - LLM_MODEL_NAME (e.g. qwen2.5-coder, gpt-4.1-mini, etc.)
-      - LLM_API_KEY    (optional, for remote providers)
+    1) POST /v1/chat/completions  (OpenAI chat)
+    2) POST /v1/completions       (OpenAI text)
     """
     base_url = os.getenv("LLM_BASE_URL", "http://localhost:8000")
     model = os.getenv("LLM_MODEL_NAME", "gpt-4.1-mini")
     api_key = os.getenv("LLM_API_KEY")
-
-    url = f"{base_url.rstrip('/')}/v1/chat/completions"
 
     headers = {"Content-Type": "application/json"}
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
 
     async with httpx.AsyncClient(timeout=60.0) as client:
-        resp = await client.post(
-            url,
+        # --- 1) Try /v1/chat/completions ---
+        chat_url = f"{base_url.rstrip('/')}/v1/chat/completions"
+        try:
+            chat_resp = await client.post(
+                chat_url,
+                headers=headers,
+                json={
+                    "model": model,
+                    "messages": [
+                        {
+                            "role": "system",
+                            "content": (
+                                "You are an assistant for an internal developer "
+                                "knowledgebase. Use ONLY the provided context when possible."
+                            ),
+                        },
+                        {
+                            "role": "user",
+                            "content": prompt,
+                        },
+                    ],
+                    "temperature": 0.2,
+                },
+            )
+            if chat_resp.status_code != 404:
+                chat_resp.raise_for_status()
+                chat_data = chat_resp.json()
+                return chat_data["choices"][0]["message"]["content"]
+            # if 404, fall through to completions style
+        except httpx.HTTPStatusError as e:
+            # If not 404, propagate (we'll let outer handler fallback to snippets)
+            if e.response is not None and e.response.status_code != 404:
+                raise
+
+        # --- 2) Try /v1/completions ---
+        completions_url = f"{base_url.rstrip('/')}/v1/completions"
+        comp_resp = await client.post(
+            completions_url,
             headers=headers,
             json={
                 "model": model,
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": (
-                            "You are an assistant for an internal developer "
-                            "knowledgebase. Use ONLY the provided context when possible."
-                        ),
-                    },
-                    {
-                        "role": "user",
-                        "content": prompt,
-                    },
-                ],
+                "prompt": prompt,
                 "temperature": 0.2,
+                "max_tokens": 512,
             },
         )
-
-        resp.raise_for_status()
-        data = resp.json()
-        # Expect OpenAI-style response
-        return data["choices"][0]["message"]["content"]
+        comp_resp.raise_for_status()
+        comp_data = comp_resp.json()
+        # most completions-style APIs put text here:
+        choice = comp_data["choices"][0]
+        if isinstance(choice, dict):
+            if "text" in choice:
+                return choice["text"]
+            # some still use message
+            if "message" in choice and isinstance(choice["message"], dict):
+                return choice["message"].get("content", "")
+        # fallback: string
+        return str(choice)
 
 
 def build_fallback_answer(sources: List[KnowledgeSourceChunk]) -> str:
-    """
-    Old behavior: just stitch together snippets so we always have *something*
-    even if LLM is down.
-    """
     if not sources:
         return (
             "No relevant documents were found in the knowledgebase for this question. "
@@ -91,7 +124,8 @@ async def query_knowledge_endpoint(
 ):
     """
     Query the knowledgebase using semantic search + LLM answer.
-    Falls back to stitched snippets if the LLM call fails.
+    Uses the same llm_chat helper as /api/chat, and falls back to
+    stitched snippets if the LLM call fails.
     """
     # 1) Retrieve relevant chunks from Chroma
     sources: List[KnowledgeSourceChunk] = knowledge_service.query_knowledge(
@@ -112,8 +146,8 @@ async def query_knowledge_endpoint(
         )
     context_text = "\n\n".join(context_blocks)
 
-    rag_prompt = f"""
-You are an assistant for an internal developer knowledgebase.
+    # 3) Build a single user prompt that includes context + question
+    user_prompt = f"""
 Use ONLY the following context to answer the question.
 
 Context:
@@ -128,15 +162,28 @@ Instructions:
 - Be concise, clear, and actionable for engineers in a unit.
 """
 
-    # 3) Try LLM call; if it fails, fall back to stitched snippets
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "You are an assistant for an internal developer knowledgebase "
+                "in a military unit. Use only the given context; do not invent facts."
+            ),
+        },
+        {
+            "role": "user",
+            "content": user_prompt,
+        },
+    ]
+
+    # 4) Call the same LLM client as /api/chat, with safe fallback
     try:
-        llm_answer = await call_llm_with_rag(rag_prompt)
-        answer = llm_answer.strip()
+        llm_answer = await llm_chat(messages)
+        answer = (llm_answer or "").strip()
         if not answer:
             answer = build_fallback_answer(sources)
     except Exception as e:
-        # Log server-side; don’t break UI
-        print(f"[knowledge] LLM call failed, using fallback: {e}")
+        print(f"[knowledge] LLM call via llm_chat failed, using fallback: {e}")
         answer = build_fallback_answer(sources)
 
     return KnowledgeQueryResponse(answer=answer, sources=sources)
@@ -147,9 +194,6 @@ async def add_text_document_endpoint(
     payload: AddTextRequest,
     current_user: UserPublic = Depends(get_current_user),
 ):
-    """
-    Add a small text note into the knowledgebase and index it.
-    """
     if not payload.title.strip():
         raise HTTPException(status_code=400, detail="Title is required.")
     if not payload.text.strip():
@@ -159,4 +203,82 @@ async def add_text_document_endpoint(
         title=payload.title.strip(),
         text=payload.text,
     )
+    return {"status": "ok"}
+
+
+@router.post("/upload_file")
+async def upload_file_to_knowledgebase(
+    file: UploadFile = File(...),
+    current_user: UserPublic = Depends(get_current_user),
+):
+    """
+    Upload a document (pdf/txt/md) into the Knowledgebase folder and index it.
+    """
+    allowed_ext = {".pdf", ".txt", ".md"}
+    suffix = Path(file.filename).suffix.lower()
+
+    if suffix not in allowed_ext:
+        raise HTTPException(
+            status_code=400,
+            detail="Unsupported file type. Allowed: .pdf, .txt, .md",
+        )
+
+    # Save file into Knowledgebase/
+    base_dir = Path(__file__).resolve().parents[2]
+    kb_dir = base_dir / "Knowledgebase"
+    kb_dir.mkdir(parents=True, exist_ok=True)
+
+    save_path = kb_dir / file.filename
+
+    try:
+        with save_path.open("wb") as f:
+            content = await file.read()
+            f.write(content)
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to save file: {e}",
+        )
+
+    # Index just this file
+    try:
+        knowledge_service.index_single_file(save_path)
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to index file: {e}",
+        )
+
+    return {"status": "ok", "filename": file.filename}
+
+@router.get("/documents", response_model=list[KnowledgeDocument])
+async def list_knowledge_documents(
+    current_user: UserPublic = Depends(get_current_user),
+):
+    """
+    List documents currently indexed in the knowledgebase (from Chroma metadata).
+    """
+    docs = knowledge_service.list_documents()
+    return docs
+
+
+class DeleteDocumentRequest(BaseModel):
+  title: str
+  path: Optional[str] = None
+
+
+@router.post("/delete_document")
+async def delete_knowledge_document(
+    payload: DeleteDocumentRequest,
+    current_user: UserPublic = Depends(get_current_user),
+):
+    """
+    Delete a knowledge document (and its vectors) by title/path.
+    If path is present and points to a file in Knowledgebase/, remove the file, too.
+    """
+    title = payload.title.strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="Title is required.")
+
+    knowledge_service.delete_document(title=title, path=payload.path)
     return {"status": "ok"}

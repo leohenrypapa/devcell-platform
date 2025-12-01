@@ -1,19 +1,19 @@
 import os
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Optional
 
 import chromadb
 from chromadb.config import Settings
 from sentence_transformers import SentenceTransformer
+from pypdf import PdfReader
 
-from app.schemas.knowledge import KnowledgeSourceChunk
+from app.schemas.knowledge import KnowledgeSourceChunk, KnowledgeDocument
 
-
-BASE_DIR = Path(__file__).resolve().parents[2]  # repo root
+# Repo root (../.. from this file)
+BASE_DIR = Path(__file__).resolve().parents[2]
 KNOWLEDGE_DIR = BASE_DIR / "Knowledgebase"
 CHROMA_DIR = BASE_DIR / "chroma_store"
 
-# Small, fast embedding model
 EMBED_MODEL_NAME = os.getenv(
     "KNOWLEDGE_EMBED_MODEL",
     "sentence-transformers/all-MiniLM-L6-v2",
@@ -48,7 +48,6 @@ def _get_collection():
 
 
 def _chunk_text(text: str, max_chars: int = 800) -> List[str]:
-    # Simple chunker: split on double newlines, then merge chunks if small
     paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
     chunks: List[str] = []
     current = ""
@@ -66,58 +65,104 @@ def _chunk_text(text: str, max_chars: int = 800) -> List[str]:
     return chunks or [text[:max_chars]]
 
 
-def index_files_in_knowledgebase() -> None:
+def _extract_text_from_file(path: Path) -> Optional[str]:
+    suffix = path.suffix.lower()
+
+    try:
+        if suffix == ".pdf":
+            reader = PdfReader(str(path))
+            parts: List[str] = []
+            for page in reader.pages:
+                page_text = page.extract_text() or ""
+                parts.append(page_text)
+            return "\n\n".join(parts)
+        elif suffix in {".txt", ".md"}:
+            return path.read_text(encoding="utf-8", errors="ignore")
+        else:
+            # unsupported type
+            return None
+    except Exception:
+        return None
+
+
+def _index_path(path: Path) -> None:
     """
-    Scan Knowledgebase/ for .txt / .md files and index them in Chroma.
-    This can be called at startup.
+    Index a single file at 'path' into Chroma.
+    Overwrites previous entries for this path.
     """
     collection = _get_collection()
-    embedder = _get_embedder()
+    _get_embedder()  # ensure model is loaded
 
+    if not path.is_file():
+        return
+
+    if path.suffix.lower() not in {".txt", ".md", ".pdf"}:
+        return
+
+    text = _extract_text_from_file(path)
+    if not text:
+        return
+
+    title = path.stem
+    chunks = _chunk_text(text)
+
+    # Remove any old entries for this path
+    collection.delete(
+        where={"path": str(path)},
+    )
+
+    ids = []
+    metadatas = []
+    documents = []
+
+    for idx, chunk in enumerate(chunks):
+        doc_id = f"{path.name}-{idx}"
+        ids.append(doc_id)
+        metadatas.append(
+            {
+                "title": title,
+                "path": str(path),
+            }
+        )
+        documents.append(chunk)
+
+    if not ids:
+        return
+
+    collection.upsert(
+        ids=ids,
+        metadatas=metadatas,
+        documents=documents,
+    )
+
+
+def index_files_in_knowledgebase() -> None:
+    """
+    Scan Knowledgebase/ for supported files and index them in Chroma.
+    Call this at startup.
+    """
     KNOWLEDGE_DIR.mkdir(parents=True, exist_ok=True)
 
     for path in KNOWLEDGE_DIR.rglob("*"):
         if not path.is_file():
             continue
-        if path.suffix.lower() not in {".txt", ".md"}:
-            continue
+        _index_path(path)
 
-        title = path.stem
-        text = path.read_text(encoding="utf-8", errors="ignore")
-        chunks = _chunk_text(text)
 
-        ids = []
-        metadatas = []
-        documents = []
-
-        for idx, chunk in enumerate(chunks):
-            doc_id = f"{path.name}-{idx}"
-            ids.append(doc_id)
-            metadatas.append(
-                {
-                    "title": title,
-                    "path": str(path),
-                }
-            )
-            documents.append(chunk)
-
-        if not ids:
-            continue
-
-        # Upsert into Chroma
-        collection.upsert(
-            ids=ids,
-            metadatas=metadatas,
-            documents=documents,
-        )
+def index_single_file(path: Path) -> None:
+    """
+    Index a single newly uploaded file without re-scanning everything.
+    """
+    KNOWLEDGE_DIR.mkdir(parents=True, exist_ok=True)
+    _index_path(path)
 
 
 def add_text_document(title: str, text: str) -> None:
     """
-    Add a text note as its own 'virtual' file and index it.
+    Add a text note as its own virtual document and index it.
     """
     collection = _get_collection()
-    embedder = _get_embedder()
+    _get_embedder()
 
     chunks = _chunk_text(text)
     ids = []
@@ -143,19 +188,21 @@ def add_text_document(title: str, text: str) -> None:
 
 
 def query_knowledge(query: str, top_k: int = 4) -> List[KnowledgeSourceChunk]:
+    """
+    Query semantically similar chunks from the knowledgebase.
+    """
     collection = _get_collection()
 
-    # Let Chroma handle embeddings internally (default)
     results = collection.query(
         query_texts=[query],
         n_results=top_k,
     )
 
-    sources: List[KnowledgeSourceChunk] = []
-
     docs = results.get("documents", [[]])[0]
     metas = results.get("metadatas", [[]])[0]
     scores = results.get("distances", [[]])[0]
+
+    sources: List[KnowledgeSourceChunk] = []
 
     for doc, meta, score in zip(docs, metas, scores):
         title = meta.get("title", "Untitled")
@@ -172,3 +219,92 @@ def query_knowledge(query: str, top_k: int = 4) -> List[KnowledgeSourceChunk]:
         )
 
     return sources
+
+def list_documents(limit: int = 1000) -> List[KnowledgeDocument]:
+    """
+    Return a deduplicated list of documents (title + path) based on
+    what's stored in the Chroma collection metadata.
+    """
+    collection = _get_collection()
+
+    # Get all items (up to 'limit') from Chroma
+    res = collection.get(
+        include=["metadatas", "documents"],
+        limit=limit,
+    )
+
+    metadatas = res.get("metadatas", [])
+    documents = res.get("documents", [])
+
+    seen = set()
+    docs: List[KnowledgeDocument] = []
+
+    for midx, (meta_list, doc_list) in enumerate(zip(metadatas, documents)):
+        # In newer Chroma, get() returns a flat list; in older, nested.
+        if isinstance(meta_list, dict):
+            meta = meta_list
+            content = doc_list
+            title = meta.get("title", "Untitled")
+            path = meta.get("path")
+            key = (title, path)
+            if key in seen:
+                continue
+            seen.add(key)
+
+            preview = (content or "")[:400]
+            docs.append(
+                KnowledgeDocument(
+                    id=f"{title}:{path}" if path else title,
+                    title=title,
+                    path=path,
+                    content_preview=preview,
+                )
+            )
+        else:
+            # Handle older shape: list of dicts
+            for meta, content in zip(meta_list, doc_list):
+                title = meta.get("title", "Untitled")
+                path = meta.get("path")
+                key = (title, path)
+                if key in seen:
+                    continue
+                seen.add(key)
+
+                preview = (content or "")[:400]
+                docs.append(
+                    KnowledgeDocument(
+                        id=f"{title}:{path}" if path else title,
+                        title=title,
+                        path=path,
+                        content_preview=preview,
+                    )
+                )
+
+    return docs
+
+
+def delete_document(title: str, path: Optional[str]) -> None:
+    """
+    Delete a document from Chroma by its title/path metadata.
+    If path points to a file in Knowledgebase/, also remove the file.
+    """
+    collection = _get_collection()
+
+    where_filter = {"title": title}
+    if path:
+        where_filter["path"] = path
+
+    # Delete from vector store
+    collection.delete(where=where_filter)
+
+    # Optionally delete physical file if it lives under Knowledgebase/
+    if path:
+        file_path = Path(path)
+        try:
+            # Only remove if inside KNOWLEDGE_DIR (safety)
+            if KNOWLEDGE_DIR in file_path.resolve().parents:
+                if file_path.exists():
+                    file_path.unlink()
+        except Exception as e:
+            # Just log; don't crash API
+            print(f"[knowledge] Failed to remove file {path}: {e}")
