@@ -1,30 +1,46 @@
 import React from "react";
 import { NavLink } from "react-router-dom";
+import { useTheme } from "../context/ThemeContext";
 
 const Sidebar: React.FC = () => {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+
   const baseStyle: React.CSSProperties = {
     display: "block",
     padding: "0.5rem 1rem",
     textDecoration: "none",
-    color: "#333",
+    color: isDark ? "#e5e7eb" : "#333",
+    fontSize: "0.9rem",
   };
+
+  const activeBg = isDark ? "#1f2937" : "#eee";
 
   return (
     <aside
       style={{
         width: "220px",
-        borderRight: "1px solid #ddd",
+        borderRight: `1px solid ${isDark ? "#374151" : "#ddd"}`,
         paddingTop: "1rem",
+        backgroundColor: isDark ? "#020617" : "#ffffff",
       }}
     >
-      <h2 style={{ padding: "0 1rem", fontSize: "1.2rem" }}>DevCell</h2>
+      <h2
+        style={{
+          padding: "0 1rem",
+          fontSize: "1.2rem",
+          color: isDark ? "#e5e7eb" : "#111827",
+        }}
+      >
+        DevCell
+      </h2>
       <nav style={{ marginTop: "1rem" }}>
         <NavLink
           to="/"
           end
           style={({ isActive }) => ({
             ...baseStyle,
-            backgroundColor: isActive ? "#eee" : "transparent",
+            backgroundColor: isActive ? activeBg : "transparent",
           })}
         >
           Dashboard
@@ -33,7 +49,7 @@ const Sidebar: React.FC = () => {
           to="/chat"
           style={({ isActive }) => ({
             ...baseStyle,
-            backgroundColor: isActive ? "#eee" : "transparent",
+            backgroundColor: isActive ? activeBg : "transparent",
           })}
         >
           Unit Chat (LLM)
@@ -42,7 +58,7 @@ const Sidebar: React.FC = () => {
           to="/knowledge"
           style={({ isActive }) => ({
             ...baseStyle,
-            backgroundColor: isActive ? "#eee" : "transparent",
+            backgroundColor: isActive ? activeBg : "transparent",
           })}
         >
           Knowledge Base
@@ -51,16 +67,25 @@ const Sidebar: React.FC = () => {
           to="/standup"
           style={({ isActive }) => ({
             ...baseStyle,
-            backgroundColor: isActive ? "#eee" : "transparent",
+            backgroundColor: isActive ? activeBg : "transparent",
           })}
         >
           Standups
         </NavLink>
         <NavLink
+          to="/tasks"
+          style={({ isActive }) => ({
+            ...baseStyle,
+            backgroundColor: isActive ? activeBg : "transparent",
+          })}
+        >
+          Tasks
+        </NavLink>
+        <NavLink
           to="/projects"
           style={({ isActive }) => ({
             ...baseStyle,
-            backgroundColor: isActive ? "#eee" : "transparent",
+            backgroundColor: isActive ? activeBg : "transparent",
           })}
         >
           Projects
@@ -69,7 +94,7 @@ const Sidebar: React.FC = () => {
           to="/admin"
           style={({ isActive }) => ({
             ...baseStyle,
-            backgroundColor: isActive ? "#eee" : "transparent",
+            backgroundColor: isActive ? activeBg : "transparent",
           })}
         >
           Admin
@@ -78,12 +103,11 @@ const Sidebar: React.FC = () => {
           to="/review"
           style={({ isActive }) => ({
             ...baseStyle,
-            backgroundColor: isActive ? "#eee" : "transparent",
+            backgroundColor: isActive ? activeBg : "transparent",
           })}
         >
           Code Review
         </NavLink>
-
       </nav>
     </aside>
   );

@@ -12,6 +12,8 @@ import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import ProfilePage from "./pages/ProfilePage";
 import { useUser } from "./context/UserContext";
+import TasksPage from "./pages/TasksPage";
+import { ThemeProvider } from "./context/ThemeContext";
 
 const App: React.FC = () => {
   const { isAuthenticated, user } = useUser();
@@ -20,19 +22,17 @@ const App: React.FC = () => {
   const isAuthEntryPage =
     location.pathname === "/login" || location.pathname === "/register";
 
-  if (isAuthEntryPage) {
-    return (
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
-    );
-  }
-
   const isAdmin = isAuthenticated && user?.role === "admin";
 
-  return (
+  const authRoutes = (
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
+      <Route path="*" element={<Navigate to="/login" replace />} />
+    </Routes>
+  );
+
+  const mainRoutes = (
     <Layout>
       <Routes>
         {/* Protected routes */}
@@ -53,12 +53,18 @@ const App: React.FC = () => {
           element={isAuthenticated ? <StandupPage /> : <Navigate to="/login" />}
         />
         <Route
+          path="/tasks"
+          element={isAuthenticated ? <TasksPage /> : <Navigate to="/login" />}
+        />
+        <Route
           path="/projects"
           element={isAuthenticated ? <ProjectsPage /> : <Navigate to="/login" />}
         />
         <Route
           path="/review"
-          element={isAuthenticated ? <CodeReviewPage /> : <Navigate to="/login" />}
+          element={
+            isAuthenticated ? <CodeReviewPage /> : <Navigate to="/login" />
+          }
         />
         <Route
           path="/profile"
@@ -76,13 +82,13 @@ const App: React.FC = () => {
             )
           }
         />
-
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>
   );
-};
 
+  return <ThemeProvider>{isAuthEntryPage ? authRoutes : mainRoutes}</ThemeProvider>;
+};
 
 export default App;

@@ -1,98 +1,96 @@
+from datetime import date as date_cls
 from typing import Tuple, List
 
-from app.services.standup_store import get_today_standups
+from app.services.standup_store import get_today_standups, get_standups_for_date
 from app.services.task_store import list_tasks
 from app.core.llm_client import llm_chat
 
 
-async def summarize_today_standups() -> Tuple[str, int]:
+async def summarize_standups_for_date(target_date: date_cls) -> Tuple[str, int]:
     """
-    Build a combined text summary of today's standups and active tasks.
+    Build a combined text summary of standups and active tasks for a given date.
     Returns (summary_text, count_of_entries).
     """
-    standups = get_today_standups()
-    if not standups:
-        return "No standups submitted yet today.", 0
+    # Choose how to load standups based on date
+    if target_date == date_cls.today():
+        standups = get_today_standups()
+    else:
+        standups = get_standups_for_date(target_date)
 
-    # ---------------------------------------------------------------------
-    # 1. BUILD STANDUP TEXT BLOCK
-    # ---------------------------------------------------------------------
+    if not standups:
+        return f"No standups submitted for {target_date.isoformat()}.", 0
+
+    # ------------------------------------------------------------------
+    # Build standup text block
+    # ------------------------------------------------------------------
     standup_lines: List[str] = []
     for s in standups:
         standup_lines.append(f"Name: {s.name}")
         if s.yesterday:
-            standup_lines.append(f"  Yesterday: {s.yesterday}")
-        standup_lines.append(f"  Today: {s.today}")
+            standup_lines.append(f"Yesterday: {s.yesterday}")
+        if s.today:
+            standup_lines.append(f"Today: {s.today}")
         if s.blockers:
-            standup_lines.append(f"  Blockers: {s.blockers}")
-        standup_lines.append("")
+            standup_lines.append(f"Blockers: {s.blockers}")
+        standup_lines.append("")  # blank line between entries
 
     standup_text = "\n".join(standup_lines)
 
-    # ---------------------------------------------------------------------
-    # 2. BUILD TASK TEXT BLOCK
-    # ---------------------------------------------------------------------
-    # Fetch ALL active tasks for today’s standup authors
-    user_list = {s.name for s in standups}
-
+    # ------------------------------------------------------------------
+    # Build tasks text block (active tasks per person)
+    # ------------------------------------------------------------------
+    owners = sorted({s.name for s in standups if s.name})
     task_lines: List[str] = []
-    task_lines.append("=== ACTIVE TASKS ===\n")
 
-    for username in sorted(user_list):
-        tasks = list_tasks(owner=username, active_only=True)
-
+    for owner in owners:
+        tasks = list_tasks(owner=owner, active_only=True)
         if not tasks:
             continue
 
-        task_lines.append(f"{username}:")
+        task_lines.append(f"Owner: {owner}")
         for t in tasks:
-            proj = f"[{t.project_name}] " if t.project_name else ""
-            status = t.status.replace("_", " ").title()
+            project_label = t.project_name or "n/a"
             task_lines.append(
-                f"  - {proj}{t.title} "
-                f"(Status: {status}, Progress: {t.progress}%)"
+                f"- [{t.status}][{t.progress}%] {t.title} (project: {project_label})"
             )
-            if t.description:
-                task_lines.append(f"      Desc: {t.description}")
+        task_lines.append("")  # blank line between owners
 
-            if t.status == "blocked":
-                task_lines.append("      ⚠ BLOCKED")
+    if task_lines:
+        tasks_text = "\n".join(task_lines)
+    else:
+        tasks_text = "No active tasks for these owners."
 
-        task_lines.append("")
-
-    tasks_text = "\n".join(task_lines)
-
-    # ---------------------------------------------------------------------
-    # 3. COMBINED SYSTEM PROMPT
-    # ---------------------------------------------------------------------
+    # ------------------------------------------------------------------
+    # LLM prompt
+    # ------------------------------------------------------------------
     system_prompt = (
-        "You are an assistant summarizing daily progress for the DevCell developer unit.\n"
-        "You will be given:\n"
-        "1. Raw standup text (yesterday / today / blockers).\n"
-        "2. Structured active task lists (per person, with status and progress).\n\n"
-        "Produce a concise, high-signal summary containing:\n"
-        "- Overall progress across the team in bullet points\n"
-        "- Notable accomplishments\n"
-        "- Task progress grouped by person\n"
-        "- Blockers grouped by person (from both standups and tasks)\n"
-        "- Any schedule risks, stalled work, or dependencies\n\n"
-        "Tone: clear, factual, and suitable for a technical team lead or military officer.\n"
-        "Do NOT simply rewrite the standups—synthesize the information.\n"
+        "You are an assistant that summarizes daily standups and related tasks for an engineering team. "
+        "Generate a concise but useful summary that:\n"
+        "- Groups information by person and/or project where helpful.\n"
+        "- Highlights progress, key accomplishments, and important blockers.\n"
+        "- Mentions urgent or cross-team dependencies.\n"
+        "- Uses short paragraphs or bullet points, not one long wall of text.\n"
     )
 
-    # ---------------------------------------------------------------------
-    # 4. COMBINED MESSAGE TO LLM
-    # ---------------------------------------------------------------------
+    date_label = target_date.isoformat()
+
+    user_content = (
+        f"Date: {date_label}\n\n"
+        f"Here are the standup entries for this date:\n\n{standup_text}\n\n"
+        f"Here are the active tasks for the people above:\n\n{tasks_text}"
+    )
+
     messages = [
         {"role": "system", "content": system_prompt},
-        {
-            "role": "user",
-            "content": (
-                f"Here are today's standups:\n\n{standup_text}\n\n"
-                f"Here are today's active tasks:\n\n{tasks_text}"
-            ),
-        },
+        {"role": "user", "content": user_content},
     ]
 
     summary = await llm_chat(messages)
     return summary, len(standups)
+
+
+async def summarize_today_standups() -> Tuple[str, int]:
+    """
+    Backwards-compatible helper for 'today' summary.
+    """
+    return await summarize_standups_for_date(date_cls.today())

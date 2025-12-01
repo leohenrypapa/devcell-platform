@@ -10,7 +10,10 @@ from app.services.standup_store import (
     get_standup_by_id,
     delete_standup,
 )
-from app.services.standup_summary import summarize_today_standups
+from app.services.standup_summary import (
+    summarize_today_standups,
+    summarize_standups_for_date,
+)
 from app.services.auth_service import get_current_user
 from app.schemas.user import UserPublic
 
@@ -65,11 +68,27 @@ def list_by_date(date: str = Query(..., description="Date in YYYY-MM-DD format")
 
 
 @router.get("/summary", response_model=StandupSummary)
-async def today_summary():
+async def standup_summary(
+    date: str | None = Query(
+        None,
+        description="Optional date in YYYY-MM-DD format. If omitted, summarize today.",
+    )
+):
     """
-    Generate an AI-powered summary of today's standups.
+    Generate an AI-powered summary of standups for today or a specific date.
     """
-    summary, count = await summarize_today_standups()
+    if date is None:
+        summary, count = await summarize_today_standups()
+    else:
+        try:
+            target_date = date_cls.fromisoformat(date)
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid date format. Use YYYY-MM-DD.",
+            )
+        summary, count = await summarize_standups_for_date(target_date)
+
     return StandupSummary(summary=summary, count=count)
 
 

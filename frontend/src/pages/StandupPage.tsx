@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useUser } from "../context/UserContext";
+import { useToast } from "../context/ToastContext";
 
 type StandupEntry = {
   id: number;
@@ -55,6 +56,8 @@ type TaskListResponse = {
 
 const StandupPage: React.FC = () => {
   const { user, isAuthenticated, token } = useUser();
+
+  const { showToast } = useToast();
 
   const loggedInName = user?.username ?? "";
   const [showMineOnly, setShowMineOnly] = useState(false);
@@ -226,11 +229,11 @@ const StandupPage: React.FC = () => {
 
   const handleSubmit = async () => {
     if (!isAuthenticated || !token) {
-      alert("You must be signed in to submit a standup.");
+      showToast("You must be signed in to submit a standup.", "error");
       return;
     }
     if (!today.trim()) {
-      alert("'Today' field is required.");
+      showToast("'Today' field is required.", "error");
       return;
     }
 
@@ -266,6 +269,7 @@ const StandupPage: React.FC = () => {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
       await loadStandupsForDate(selectedDate);
+      showToast("Standup submitted.", "success");
 
       setYesterday("");
       setToday("");
@@ -275,8 +279,66 @@ const StandupPage: React.FC = () => {
     } catch (err) {
       console.error(err);
       setError("Failed to submit standup.");
+      showToast("Failed to submit standup.", "error");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleCreateTaskFromStandup = async () => {
+    if (!isAuthenticated || !token) {
+      showToast("You must be signed in to create a task.", "error");
+      return;
+    }
+
+    const trimmedToday = today.trim();
+    if (!trimmedToday) {
+      showToast("Fill out the 'Today' field first.", "error");
+      return;
+    }
+
+    // Derive a reasonable title from the first line or sentence
+    let titleSource = trimmedToday.split("\n")[0];
+    if (titleSource.length > 120) {
+      titleSource = titleSource.slice(0, 117) + "...";
+    }
+
+    const confirmCreate = window.confirm(
+      `Create a task from your standup?\n\nTitle:\n"${titleSource}"\n\nDescription will use the full 'Today' text.`
+    );
+    if (!confirmCreate) return;
+
+    const body: any = {
+      title: titleSource,
+      description: trimmedToday,
+      status: "in_progress",
+    };
+
+    // If a project is selected on the standup form, reuse it
+    if (selectedProjectId !== null) {
+      body.project_id = selectedProjectId;
+    }
+
+    try {
+      const res = await fetch(`${backendBase}/api/tasks`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+
+      // Refresh "My Tasks" panel so the new task appears
+      await loadMyTasks(taskFilterProjectId);
+      showToast("Task created from standup 'Today' text.", "success");
+    } catch (err) {
+      console.error(err);
+      showToast("Failed to create task from standup.", "error");
     }
   };
 
@@ -287,8 +349,16 @@ const StandupPage: React.FC = () => {
     setSummaryCount(null);
 
     try {
-      const res = await fetch(`${backendBase}/api/standup/summary`);
+      const params = new URLSearchParams();
+      if (selectedDate) {
+        params.set("date", selectedDate);
+      }
+
+      const res = await fetch(
+        `${backendBase}/api/standup/summary?${params.toString()}`
+      );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
       const data: StandupSummaryResponse = await res.json();
       setSummary(data.summary);
       setSummaryCount(data.count);
@@ -303,7 +373,7 @@ const StandupPage: React.FC = () => {
   const handleCopySummary = () => {
     if (!summary) return;
 
-    const header = `Daily Standup Summary (today)\nBased on ${
+    const header = `Daily Standup Summary (${selectedDate})\nBased on ${
       summaryCount ?? 0
     } standup entries.\n\n`;
     const text = header + summary;
@@ -362,6 +432,67 @@ const StandupPage: React.FC = () => {
   const displayEntries = showMineOnly && loggedInName
     ? entries.filter((e) => e.name === loggedInName)
     : entries;
+
+  const handleExportStandupsMarkdown = async () => {
+    if (!displayEntries || displayEntries.length === 0) {
+      alert("No standups to export for this date.");
+      return;
+    }
+
+    const lines: string[] = [];
+
+    lines.push(`# Standups for ${selectedDate}`);
+    if (!isToday) {
+      lines.push(`_Historical view_`, "");
+    }
+    if (showMineOnly && loggedInName) {
+      lines.push(`_Filtered: only standups by **${loggedInName}**_`, "");
+    } else {
+      lines.push("");
+    }
+
+    displayEntries.forEach((e, idx) => {
+      const name = e.name || "Unknown";
+      lines.push(`## ${idx + 1}. ${name}`);
+      if (e.project_name) {
+        lines.push(`**Project:** ${e.project_name}`, "");
+      }
+      if (e.yesterday?.trim()) {
+        lines.push(`**Yesterday**`, "");
+        lines.push(e.yesterday.trim(), "");
+      }
+      if (e.today?.trim()) {
+        lines.push(`**Today**`, "");
+        lines.push(e.today.trim(), "");
+      }
+      if (e.blockers?.trim()) {
+        lines.push(`**Blockers**`, "");
+        lines.push(e.blockers.trim(), "");
+      }
+      lines.push("---", "");
+    });
+
+    const md = lines.join("\n");
+
+    // Try to copy to clipboard
+    try {
+      await navigator.clipboard.writeText(md);
+      alert("Standups exported as Markdown and copied to clipboard.");
+    } catch (err) {
+      console.error("Failed to copy to clipboard, downloading instead.", err);
+
+      // Fallback: download as .md file
+      const blob = new Blob([md], { type: "text/markdown" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `standups-${selectedDate}.md`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+  };
 
   return (
     <div>
@@ -443,6 +574,17 @@ const StandupPage: React.FC = () => {
               style={{ width: "100%", marginTop: "0.25rem" }}
             />
           </label>
+
+          {/* Create task from Today text */}
+          <div style={{ marginTop: "0.35rem" }}>
+            <button
+              type="button"
+              onClick={handleCreateTaskFromStandup}
+              style={{ fontSize: "0.8rem" }}
+            >
+              + Create Task from Today
+            </button>
+          </div>
         </div>
         <div style={{ marginBottom: "0.5rem" }}>
           <label>
@@ -485,10 +627,27 @@ const StandupPage: React.FC = () => {
       </div>
 
       <div style={{ marginTop: "2rem" }}>
-        <h2>
-          Standups for {selectedDate}
-          {!isToday && " (historical view)"}
-        </h2>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: "0.5rem",
+          }}
+        >
+          <h2>
+            Standups for {selectedDate}
+            {!isToday && " (historical view)"}
+          </h2>
+
+          <button
+            type="button"
+            onClick={handleExportStandupsMarkdown}
+            style={{ fontSize: "0.8rem" }}
+          >
+            Export as Markdown
+          </button>
+        </div>
 
         <div style={{ marginBottom: "0.5rem", fontSize: "0.9rem" }}>
           <label>
@@ -699,13 +858,13 @@ const StandupPage: React.FC = () => {
       </div>
 
       <div style={{ marginTop: "2rem" }}>
-        <h2>AI Summary (Today)</h2>
+        <h2>AI Summary ({selectedDate})</h2>
         <p style={{ fontSize: "0.85rem", opacity: 0.8 }}>
-          This summary always reflects <strong>today&apos;s</strong> standups,
-          regardless of the date selected above.
+          This summary reflects standups for the selected date above and the
+          current active tasks of those team members.
         </p>
         <button onClick={handleGenerateSummary} disabled={loadingSummary}>
-          {loadingSummary ? "Generating..." : "Generate AI Summary"}
+          {loadingSummary ? "Generating..." : "Generate Summary"}
         </button>
         {summary && (
           <button

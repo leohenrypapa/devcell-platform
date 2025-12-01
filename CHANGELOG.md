@@ -6,6 +6,75 @@
 ### Changed
 -
 
+### Fixed
+-
+
+---
+
+## [0.5.0] - 2025-12-01
+
+### Added
+- **Global Toast System**
+  - Introduced `ToastContext` with `showToast(message, type)` for all pages.
+  - Replaced most `alert()` calls with non-blocking toasts (success, error, info).
+  - Styled bottom-right stack, auto-dismiss, smooth fade transitions.
+
+- **Global Light/Dark Theme**
+  - Added `ThemeContext` with persistence in `localStorage`.
+  - Topbar toggle button (🌙/☀) updates `<html>` and `<body>` theme variables.
+  - Sidebar, Topbar, Buttons, Cards auto-adapt to theme.
+
+- **Tasks Enhancements**
+  - Search bar (title, description, owner, project name).
+  - Status pill styling (`todo`, `in_progress`, `done`, `blocked`).
+  - Progress bar visualization.
+  - Task edit modal (title, description, project, due date).
+  - Inline status/progress updater.
+  - Task archiving + Unarchive.
+  - Bulk actions (select all, archive selected, delete selected).
+  - Project filter/dropdown integration.
+  - Error/success toasts for all operations.
+
+- **Dashboard Enhancements (Phase 1 + Phase 2)**
+  - **My Active Tasks** metrics block:
+    - Total active tasks
+    - Status breakdown (todo/in_progress/done/blocked)
+    - Quick link to Tasks page
+  - **New Sections Added:**
+    - **Recent Tasks** (5 most recently updated tasks)
+    - **Recent Standups** (last 3 days, grouped by date)
+    - **Quick Actions** panel (Go to Tasks / Go to Standups)
+  - **My Today panel** expanded to include:
+    - My Standups (today)
+    - My Projects
+    - My Active Tasks
+    - Recent Tasks
+    - Quick Actions
+  - **Unit Snapshot** panel improved for theme support and readability.
+
+- **Standups Enhancements**
+  - “Create Task From Today” integration.
+  - Improved AI Summary section.
+  - “Export Standups as Markdown” button.
+  - Theme-aware styles and minor UX polish.
+
+### Changed
+- Updated Layout shell to wrap app with:
+  - `ThemeProvider`
+  - `ToastProvider`
+- Updated Sidebar + Topbar for theme-safe colors and better active-state styles.
+- Improved filtering logic in TasksPage.
+- Dashboard now loads all user-specific data with correct Authorization headers.
+- Dashboard layout upgraded to a cleaner 2-column structure with stacked cards.
+- General UI/UX cleanup across multiple components.
+
+### Fixed
+- Tasks search previously not matching project names (fixed).
+- Dashboard tasks panel not updating due to missing auth header.
+- Standup summary error states not rendering correctly.
+- Multiple light/dark theme color inconsistencies.
+- Minor layout alignment and spacing issues across Tasks, Standups, and Dashboard.
+
 ---
 
 ## [0.4.0] - 2025-12-01
