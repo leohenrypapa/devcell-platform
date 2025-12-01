@@ -8,6 +8,42 @@
 
 ---
 
+## [0.4.0] - 2025-12-01
+
+### Added
+- New **Tasks module**:
+  - Backend CRUD API at `/api/tasks` (list, create, update, deactivate).
+  - Tasks linked to the authenticated user and optionally tied to a project.
+  - Task fields include: `title`, `description`, `status`, `progress`, `project_id`, `due_date`, `is_active`.
+  - Added `task_store.py` service layer for DB operations.
+  - Standup summary now incorporates active tasks for richer AI summaries.
+
+- Frontend tasks UI:
+  - **"My Tasks"** panel integrated into the Standups page.
+  - Create-task modal with project assignment.
+  - Inline editing for status, progress %, and description.
+  - Task filtering by project.
+
+- Database:
+  - Automatic creation of the `tasks` table during startup (`init_db()`).
+  - Added foreign key linking `project_id → projects(id)`.
+
+- Admin initialization:
+  - Added `ensure_default_admin()` to always create a fallback admin account  
+    (`admin` / `password`) when no admin exists.
+
+### Changed
+- `main.py` startup flow updated:
+  - `init_db()` now also creates the tasks table.
+  - Calls `ensure_default_admin()` on startup.
+  - Loads tasks router automatically.
+
+- Standup summary:
+  - Updated summarizer to include per-user active tasks.
+  - LLM prompt improved for merging standups + task progress.
+
+---
+
 ## [0.3.0] - 2025-12-01
 
 ### Added

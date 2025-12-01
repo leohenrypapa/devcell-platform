@@ -82,5 +82,25 @@ def init_db() -> None:
         """
     )
 
+    # Tasks table (NEW)
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS tasks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            owner TEXT NOT NULL,
+            title TEXT NOT NULL,
+            description TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL,                 -- 'todo' | 'in_progress' | 'done' | 'blocked'
+            project_id INTEGER,
+            progress INTEGER NOT NULL DEFAULT 0,
+            due_date TEXT,
+            is_active INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY (project_id) REFERENCES projects (id)
+        );
+        """
+    )
+
     conn.commit()
     conn.close()

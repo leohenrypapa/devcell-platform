@@ -34,6 +34,25 @@ type ProjectListResponse = {
   items: Project[];
 };
 
+type Task = {
+  id: number;
+  owner: string;
+  title: string;
+  description: string;
+  status: "todo" | "in_progress" | "done" | "blocked";
+  progress: number;
+  project_id?: number | null;
+  project_name?: string | null;
+  due_date?: string | null;
+  created_at: string;
+  updated_at: string;
+  is_active: boolean;
+};
+
+type TaskListResponse = {
+  items: Task[];
+};
+
 const StandupPage: React.FC = () => {
   const { user, isAuthenticated, token } = useUser();
 
@@ -62,6 +81,11 @@ const StandupPage: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState<string>(() => {
     return new Date().toISOString().slice(0, 10); // YYYY-MM-DD
   });
+
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [loadingTasks, setLoadingTasks] = useState(false);
+  const [taskError, setTaskError] = useState<string | null>(null);
+  const [taskFilterProjectId, setTaskFilterProjectId] = useState<number | null>(null);
 
   const backendBase = (import.meta as any).env.VITE_BACKEND_BASE_URL || "http://localhost:9000";
 
@@ -97,10 +121,101 @@ const StandupPage: React.FC = () => {
       setLoadingProjects(false);
     }
   };
+  const loadMyTasks = async (projectId?: number | null) => {
+    if (!isAuthenticated || !token) {
+      setTasks([]);
+      return;
+    }
+    setLoadingTasks(true);
+    setTaskError(null);
+    try {
+      const params = new URLSearchParams();
+      params.set("mine", "true");
+      params.set("active_only", "true");
+      if (projectId !== undefined && projectId !== null) {
+        params.set("project_id", String(projectId));
+      }
+      const res = await fetch(`${backendBase}/api/tasks?${params.toString()}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data: TaskListResponse = await res.json();
+      setTasks(data.items || []);
+    } catch (err) {
+      console.error(err);
+      setTaskError("Failed to load tasks.");
+    } finally {
+      setLoadingTasks(false);
+    }
+  };
+
+  const handleCreateTask = async () => {
+    if (!isAuthenticated || !token) {
+      alert("You must be signed in to create a task.");
+      return;
+    }
+    const title = prompt("Task title:");
+    if (!title || !title.trim()) return;
+
+    const description = prompt("Task description (optional):") || "";
+    const body: any = {
+      title: title.trim(),
+      description,
+      status: "todo",
+    };
+    if (taskFilterProjectId !== null) {
+      body.project_id = taskFilterProjectId;
+    }
+
+    try {
+      const res = await fetch(`${backendBase}/api/tasks`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      await loadMyTasks(taskFilterProjectId);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to create task.");
+    }
+  };
+
+  const handleUpdateTask = async (
+    taskId: number,
+    updates: Partial<Pick<Task, "status" | "progress">>
+  ) => {
+    if (!isAuthenticated || !token) {
+      alert("You must be signed in to update a task.");
+      return;
+    }
+    try {
+      const res = await fetch(`${backendBase}/api/tasks/${taskId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(updates),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      await loadMyTasks(taskFilterProjectId);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to update task.");
+    }
+  };
+
 
   useEffect(() => {
     loadStandupsForDate(selectedDate);
     loadProjects();
+    loadMyTasks(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -456,6 +571,127 @@ const StandupPage: React.FC = () => {
                     <strong>Blockers:</strong> {e.blockers}
                   </p>
                 )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+
+      <div style={{ marginTop: "2rem" }}>
+        <h2>My Tasks</h2>
+        <p style={{ fontSize: "0.85rem", opacity: 0.8 }}>
+          Tasks are owned by your account and can optionally be linked to a project.
+          This panel shows only <strong>your</strong> active tasks.
+        </p>
+
+        <div
+          style={{
+            marginTop: "0.5rem",
+            marginBottom: "0.75rem",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.5rem",
+            flexWrap: "wrap",
+          }}
+        >
+          <label style={{ fontSize: "0.9rem" }}>
+            Filter by project:&nbsp;
+            <select
+              value={taskFilterProjectId ?? ""}
+              onChange={(e) => {
+                const val = e.target.value;
+                const newId = val === "" ? null : Number(val);
+                setTaskFilterProjectId(newId);
+                loadMyTasks(newId);
+              }}
+            >
+              <option value="">All projects</option>
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} [{p.status}]
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <button type="button" onClick={handleCreateTask}>
+            + New Task
+          </button>
+        </div>
+
+        {taskError && (
+          <div style={{ color: "red", marginBottom: "0.5rem" }}>{taskError}</div>
+        )}
+
+        {loadingTasks ? (
+          <p>Loading tasks...</p>
+        ) : tasks.length === 0 ? (
+          <p>No active tasks yet.</p>
+        ) : (
+          <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+            {tasks.map((t) => (
+              <li
+                key={t.id}
+                style={{
+                  border: "1px solid #ddd",
+                  borderRadius: "4px",
+                  padding: "0.75rem",
+                  marginBottom: "0.5rem",
+                  fontSize: "0.9rem",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                  }}
+                >
+                  <div>
+                    <strong>{t.title}</strong>
+                    {t.project_name && (
+                      <span style={{ marginLeft: "0.5rem", opacity: 0.8 }}>
+                        [{t.project_name}]
+                      </span>
+                    )}
+                    {t.description && (
+                      <div style={{ marginTop: "0.25rem" }}>{t.description}</div>
+                    )}
+                  </div>
+                  <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                    <label style={{ fontSize: "0.8rem" }}>
+                      Status:&nbsp;
+                      <select
+                        value={t.status}
+                        onChange={(e) =>
+                          handleUpdateTask(t.id, { status: e.target.value as Task["status"] })
+                        }
+                      >
+                        <option value="todo">Todo</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="done">Done</option>
+                        <option value="blocked">Blocked</option>
+                      </select>
+                    </label>
+                    <label style={{ fontSize: "0.8rem" }}>
+                      %&nbsp;
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={t.progress}
+                        onChange={(e) =>
+                          handleUpdateTask(t.id, {
+                            progress: Math.min(100, Math.max(0, Number(e.target.value) || 0)),
+                          })
+                        }
+                        style={{ width: "3rem" }}
+                      />
+                    </label>
+                  </div>
+                </div>
               </li>
             ))}
           </ul>

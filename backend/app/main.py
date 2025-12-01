@@ -11,10 +11,12 @@ from app.api.routes import (
     review,
     dashboard,
     auth,
+    tasks,  # 👈 NEW: tasks router
 )
 
 from app.db import init_db
-from app.services import knowledge_service   # 👈 NEW import
+from app.services import knowledge_service   # existing
+from app.services.user_store import ensure_default_admin  # 👈 NEW import
 
 
 def create_app() -> FastAPI:
@@ -43,6 +45,7 @@ def create_app() -> FastAPI:
     app.include_router(review.router, prefix=api_prefix)
     app.include_router(dashboard.router, prefix=api_prefix)
     app.include_router(auth.router, prefix=api_prefix)
+    app.include_router(tasks.router, prefix=api_prefix)  # 👈 NEW: /api/tasks
 
     # -------------------------
     # STARTUP EVENTS
@@ -51,6 +54,10 @@ def create_app() -> FastAPI:
     async def startup_event():
         # Initialize SQLite DB
         init_db()
+
+        # Ensure we always have at least one admin user.
+        # If no admin exists, creates: username=admin, password=password
+        ensure_default_admin()
 
         # Initialize RAG system (Chroma + embeddings + file indexing)
         knowledge_service.index_files_in_knowledgebase()

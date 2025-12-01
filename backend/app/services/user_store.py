@@ -389,3 +389,48 @@ def admin_update_user(
         return None
 
     return _row_to_user(updated_row)
+
+
+def ensure_default_admin() -> None:
+    """
+    Ensure there is at least one admin account.
+
+    If no admin exists, create a default one:
+      - username: admin
+      - password: password
+
+    This is intended for dev/demo/reset scenarios only.
+    """
+    # First, check if the users table has any admin row.
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) AS c FROM users WHERE role = 'admin'")
+        row = cur.fetchone()
+        conn.close()
+    except Exception:
+        # If the table doesn't exist yet or some other error occurs,
+        # just skip silently so startup doesn't crash.
+        return
+
+    count = int(row["c"] if row else 0)
+    if count > 0:
+        # Already have at least one admin, nothing to do.
+        return
+
+    # No admins found -> create the default admin.
+    try:
+        create_user(
+            username="admin",
+            raw_password="password",
+            role="admin",
+            display_name="DevCell Admin",
+            job_title="Admin",
+            team_name="DevCell",
+            rank=None,
+            skills=None,
+            is_active=True,
+        )
+    except Exception:
+        # Don't crash app startup if this fails; can be corrected manually.
+        return
