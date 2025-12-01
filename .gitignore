@@ -27,3 +27,23 @@ frontend/dist/
 
 # VSCode
 .vscode/
+
+# ---- RAG / Vector Database ----
+# Chroma / Vector DB files
+chroma_store/
+*/chroma_store/
+**/chroma_store/
+**/chroma/
+**/db/
+
+# Binary DB formats
+*.sqlite*
+*.parquet
+*.bin
+*.pkl
+*.npy
+
+# LangChain indexes
+*.faiss
+*.hnsw
+index_store/
