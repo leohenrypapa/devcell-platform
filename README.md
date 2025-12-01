@@ -1,59 +1,124 @@
 # DevCell Platform
 
-Internal developer communication and coordination portal for your unit.
+DevCell is a lightweight internal developer coordination platform designed for small engineering teams (military, research, startup) that want structured workflow tools without heavy enterprise systems.  
+It runs fully self-hosted and integrates directly with **your own LLM server**.
 
-This platform sits on top of your own LLM server and gives your dev cell:
+The platform provides:
 
-- A shared place to track work
-- Daily standups and project status
-- Knowledge / RAG search
-- AI-assisted chat and code review
-- A dashboard-style daily SITREP view
-
----
-
-## Features
-
-- **LLM Chat Assistant** – talk to your own LLM server from a simple web UI
-- **Knowledgebase / RAG** – upload or connect docs and query them with retrieval-augmented generation
-- **Daily Standups** – structured yesterday/today/blockers entries per dev
-- **AI Standup Summary (SITREP)** – auto-summarize today’s standups for quick briefs
-- **Projects Tracking** – track work by project with statuses (planned/active/blocked/done)
-- **Project AI Summaries** – per-project progress summaries based on standups
-- **Dashboard** – “morning brief” showing my today, unit snapshot, and AI Unit SITREP
-- **Code Review Helper** – send code + instructions to your LLM server for feedback
-- **Local User Identity & Roles** – username/password login, `user` vs `admin` roles, Admin page for user management
+- Shared task tracking  
+- Daily standups  
+- Dashboard morning brief  
+- Knowledgebase with RAG search  
+- AI-assisted summaries and SITREPs  
+- Local role-based authentication  
+- Clean, modern React UI  
 
 ---
 
-## Architecture (High Level)
+## 🚀 Features
 
-- **Frontend**
-  - React + TypeScript + Vite
-  - Talks to the backend via REST (`VITE_BACKEND_BASE_URL`)
-  - Pages: Login, Dashboard, Standups, Projects, Knowledge, Chat, Admin, Code Review
+### **Developer Workflow**
+- **Tasks Module**
+  - Create/edit tasks
+  - Inline status & progress updates
+  - Search bar (title, description, owner, project)
+  - Archive / unarchive
+  - Status pills (`todo`, `in_progress`, `blocked`, `done`)
+  - Dashboard integration (My Tasks, Recent Tasks)
 
-- **Backend**
-  - Python 3 + FastAPI + uvicorn
-  - REST API under `/api/...`
-  - Handles:
-    - Auth + sessions (users, roles)
-    - Standups CRUD + AI summaries
-    - Projects CRUD + AI summaries
-    - Knowledge / RAG endpoints
-    - Chat & code review proxy to LLM
+- **Projects**
+  - Track objectives by project
+  - Filter tasks by project
+  - Project-level summaries (future)
 
-- **Database**
-  - SQLite (`devcell.db`) at repo root (or mounted volume in Docker)
-  - Tables for users, sessions, standups, projects, etc.
+- **Daily Standups**
+  - Yesterday / Today / Blockers
+  - Markdown export
+  - AI-generated standup summary
+  - Convert standup items → tasks
 
-- **LLM Server**
-  - External server you run (e.g. OpenAI-compatible, Qwen, etc.)
-  - Configured via environment variables (e.g. `LLM_BASE_URL`, `LLM_MODEL_NAME`)
+### **AI-Integrated Modules**
+- **LLM Chat Assistant**
+  - Chat with your self-hosted LLM
+  - Great for reasoning, explanations, debugging
+
+- **AI Code Review**
+  - Paste code + instructions
+  - Your LLM returns improvements, optimizations, security notes
+
+- **AI SITREP**
+  - Dashboard button generates a unit Situation Report
+  - Based on tasks, standups, and recent activity
+
+- **Knowledgebase / RAG**
+  - Upload PDF / TXT / MD
+  - Automatic text extraction
+  - Vector embedding + Chroma indexing
+  - Query documents using RAG
+
+### **Dashboard**
+- Morning Brief (My Today + My Tasks)
+- Recent Tasks (last 5)
+- Recent Standups (last 3 days)
+- Quick Actions
+- Unit Snapshot
+- AI Unit SITREP generator
+
+### **Identity & Access**
+- Local users (SQLite-based)
+- Username/password login
+- `admin` vs `standard` roles
+- Admin user management page
 
 ---
 
-## Quick Start (Local Development)
+## 🏗 High-Level Architecture
+
+### **Frontend**
+- React + TypeScript + Vite
+- Pages:
+  - Login
+  - Dashboard
+  - Tasks
+  - Standups
+  - Projects
+  - Knowledgebase
+  - LLM Chat
+  - Code Review
+  - Admin
+- Global contexts:
+  - `UserContext`  
+  - `ThemeContext` (light/dark)  
+  - `ToastContext`  
+- Clean UI layout (Sidebar + Topbar)
+
+### **Backend**
+- FastAPI + Python 3
+- Modules:
+  - Auth
+  - Tasks
+  - Standups
+  - Dashboard
+  - Projects
+  - Knowledgebase / RAG
+  - LLM proxy tools
+- SQLite for relational data
+- Chroma for vector embeddings
+- JWT-based authentication
+
+### **LLM Server**
+- External model you run locally:
+  - OpenAI API-compatible  
+  - Qwen  
+  - LM Studio  
+  - Ollama  
+  - vLLM  
+  - Custom endpoints  
+- Configurable via environment variables.
+
+---
+
+## ⚡ Quick Start (Local Development)
 
 ### 1. Backend
 
@@ -63,10 +128,19 @@ python3 -m venv .venv
 source .venv/bin/activate
 
 pip install -r requirements.txt
-
-# run the API
 uvicorn app.main:app --reload --host 0.0.0.0 --port 9000
 ```
+
+Environment variables (`backend/.env`):
+
+```env
+JWT_SECRET=your_secret
+JWT_ALGORITHM=HS256
+LLM_ENDPOINT=http://localhost:8001/api/v1/query
+KNOWLEDGEBASE_DIR=Knowledgebase
+```
+
+---
 
 ### 2. Frontend
 
@@ -76,15 +150,20 @@ npm install
 npm run dev
 ```
 
-Add in `frontend/.env`:
+Environment file (`frontend/.env`):
 
 ```env
-VITE_BACKEND_BASE_URL=http://localhost:9000
+VITE_API_URL=http://localhost:9000
+```
+
+Frontend runs at:
+```
+http://localhost:5173
 ```
 
 ---
 
-## Running with Docker
+## 🐳 Running with Docker
 
 ```bash
 docker compose build
@@ -95,20 +174,45 @@ docker compose down
 
 ---
 
-## Project Structure
+## 📁 Project Structure
 
 ```
 devcell-platform/
   backend/
   frontend/
   docs/
-  devcell.db
+  Knowledgebase/
   docker-compose.yml
   README.md
 ```
 
 ---
 
-## Documentation
+## 📚 Documentation
 
-See `docs/` for detailed modules.
+Full documentation is in the `docs/` directory:
+
+- `00_Overview.md`
+- `01_Getting_Started.md`
+- `02_Architecture.md`
+- `03_Developer_Guide.md`
+- `04_Operations.md`
+- `05_API_Reference.md`
+- `99_Design_Decisions.md`
+
+---
+
+## 🧭 Roadmap (Summary)
+
+- Dashboard Phase 2 widgets  
+- RAG metadata + filters  
+- Notification system  
+- Permissions model  
+- Plugin framework  
+- Multi-tenant support (future)
+
+---
+
+## ⚠️ Disclaimer
+DevCell is designed for internal use within secure environments and is not a public SaaS platform.  
+External security hardening (TLS, reverse proxy, SSH policy) is recommended for production.
