@@ -146,3 +146,32 @@ def edit_standup(
         raise HTTPException(status_code=500, detail="Failed to update standup")
 
     return updated
+
+@router.get("", response_model=StandupList)
+def list_standups(
+    date: str = Query(..., description="Date in YYYY-MM-DD"),
+    mine: bool = Query(
+        False,
+        description="If true, only return standups authored by the current user",
+    ),
+    current_user: UserPublic = Depends(get_current_user),
+):
+    """
+    List standup entries for a specific date.
+
+    - `date` (required): which day to load
+    - `mine`: if true, only return entries where entry.name == current_user.username
+    """
+    try:
+        target_date = date_cls.fromisoformat(date)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid date format. Use YYYY-MM-DD.",
+        )
+
+    items = get_standups_for_date(target_date)
+    if mine:
+        items = [s for s in items if s.name == current_user.username]
+
+    return StandupList(items=items)

@@ -31,22 +31,13 @@ def _row_to_standup(row) -> StandupEntry:
 def add_standup(data: StandupCreate) -> StandupEntry:
     conn = get_connection()
     cur = conn.cursor()
-
-    created_at = datetime.now().isoformat()
-
+    now_str = datetime.utcnow().isoformat(timespec="seconds")
     cur.execute(
         """
         INSERT INTO standups (name, yesterday, today, blockers, created_at, project_id)
         VALUES (?, ?, ?, ?, ?, ?)
         """,
-        (
-            data.name,
-            data.yesterday,
-            data.today,
-            data.blockers,
-            created_at,
-            data.project_id,
-        ),
+        (data.name, data.yesterday, data.today, data.blockers, now_str, data.project_id),
     )
     standup_id = cur.lastrowid
     conn.commit()
@@ -54,14 +45,11 @@ def add_standup(data: StandupCreate) -> StandupEntry:
     cur.execute("SELECT * FROM standups WHERE id = ?", (standup_id,))
     row = cur.fetchone()
     conn.close()
-
-    if row is None:
-        raise RuntimeError("Failed to fetch standup after insert")
-
     return _row_to_standup(row)
 
 
 def _get_all_standups() -> List[StandupEntry]:
+    """(Kept for any legacy uses; no longer used by date-based APIs.)"""
     conn = get_connection()
     cur = conn.cursor()
     cur.execute("SELECT * FROM standups ORDER BY created_at ASC")
@@ -70,34 +58,47 @@ def _get_all_standups() -> List[StandupEntry]:
     return [_row_to_standup(row) for row in rows]
 
 
+def get_standups_for_date(target_date: date) -> List[StandupEntry]:
+    """
+    Get all standups whose created_at DATE is target_date.
+    Uses SQL filtering instead of loading the entire table.
+    """
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT * FROM standups
+        WHERE date(created_at) = ?
+        ORDER BY created_at ASC
+        """,
+        (target_date.isoformat(),),
+    )
+    rows = cur.fetchall()
+    conn.close()
+    return [_row_to_standup(row) for row in rows]
+
+
 def get_today_standups() -> List[StandupEntry]:
     """
-    Filter today's standups in Python, based on created_at date.
+    Convenience wrapper for today's standups.
     """
-    all_entries = _get_all_standups()
-    today = date.today()
-    return [s for s in all_entries if s.created_at.date() == today]
+    return get_standups_for_date(date.today())
 
 
 def get_today_standups_for_project(project_id: int) -> List[StandupEntry]:
     """
     Get today's standups filtered by a specific project_id.
     """
-    all_entries = _get_all_standups()
-    today = date.today()
-    return [
-        s
-        for s in all_entries
-        if s.created_at.date() == today and s.project_id == project_id
-    ]
+    today_items = get_today_standups()
+    return [s for s in today_items if s.project_id == project_id]
 
 
-def get_standups_for_date(target_date: date) -> List[StandupEntry]:
+def get_standups_for_project_on_date(project_id: int, target_date: date) -> List[StandupEntry]:
     """
-    Get all standups for a specific calendar date.
+    Get standups for a project on a specific date.
     """
-    all_entries = _get_all_standups()
-    return [s for s in all_entries if s.created_at.date() == target_date]
+    items = get_standups_for_date(target_date)
+    return [s for s in items if s.project_id == project_id]
 
 
 def get_standup_by_id(standup_id: int) -> Optional[StandupEntry]:

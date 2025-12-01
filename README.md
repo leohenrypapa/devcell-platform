@@ -163,17 +163,6 @@ http://localhost:5173
 
 ---
 
-## 🐳 Running with Docker
-
-```bash
-docker compose build
-docker compose up -d
-docker compose ps
-docker compose down
-```
-
----
-
 ## 📁 Project Structure
 
 ```
@@ -182,7 +171,6 @@ devcell-platform/
   frontend/
   docs/
   Knowledgebase/
-  docker-compose.yml
   README.md
 ```
 
