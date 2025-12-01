@@ -1,135 +1,146 @@
-# 00_Overview – DevCell Platform
+# DevCell Platform – Overview
 
 ## Purpose
+DevCell is a lightweight, full‑stack developer coordination platform designed to help small engineering teams operate with the clarity and efficiency of modern industry engineering organizations. It centralizes daily workflows—tasks, standups, knowledge, dashboards, AI assistance—into a single cohesive system.
 
-The DevCell Platform is an internal developer coordination and communication system built for small technical teams or military unit dev cells. It centralizes daily standups, project tracking, knowledge management, and AI-assisted workflows into one lightweight and deployable platform.
-
-This file provides a **short, executive-level overview** of what the platform is, why it exists, and how it is structured.  
-For detailed documentation, see the other markdown files in the `docs/` folder.
+This document provides a high‑level overview of the platform, its vision, and how major components fit together.
 
 ---
 
-## What the Platform Provides
-
-### ✔ Unified Work Coordination
-The platform consolidates the essential tools a developer team needs:
-
-- Daily standups (yesterday, today, blockers)
-- Project tracking with statuses
-- Dashboard morning brief
-- Knowledgebase + RAG search
-- AI-powered chat and code review
-- Simple user login + admin management
-
-### ✔ AI-Enhanced Operations
-The system uses your local LLM server to provide:
-
-- Daily SITREP summaries of standups
-- Per-project progress summaries
-- Knowledge-based answers (RAG)
-- Chat + code review capabilities
-
-This transforms raw activity into actionable information.
-
-### ✔ Lightweight & Local
-Designed to run **entirely on your own infrastructure**:
-
-- Frontend: React + Vite  
-- Backend: FastAPI + Python  
-- DB: SQLite  
-- LLM: Your internal model (OpenAI-compatible)  
-- Deployment: Docker or local  
-
-No external cloud dependencies.
+## Core Goals
+- **Unify developer workflows** in one browser-based environment  
+- **Enable fast planning & execution** through Tasks, Projects, and Standups  
+- **Provide operational awareness** through dashboard widgets and automated AI summaries  
+- **Support knowledge management** using document ingestion and RAG  
+- **Remain fully self‑hosted** and deployable on lightweight hardware  
+- **Keep architecture simple and maintainable** (React + FastAPI + SQLite + Chroma)
 
 ---
 
-## Architecture (High Level)
+## High-Level Architecture
 
-```
-+-------------------+           +---------------------+
-|     Frontend      | <-------> |       Backend       |
-| React + TypeScript|  REST API |   FastAPI (Python)  |
-+-------------------+           +---------------------+
-                                       |
-                                       | calls
-                                       v
-                              +------------------+
-                              |     LLM Server   |
-                              | (local / OpenAI) |
-                              +------------------+
+### Frontend (React + TypeScript)
+- Modular pages for Tasks, Standups, Projects, Dashboard
+- Global contexts:
+  - `UserContext`
+  - `ThemeContext`
+  - `ToastContext`
+- Shared UI components for consistency and rapid iteration
+- Responsive layout with Sidebar + Topbar
 
-                              +------------------+
-                              |     SQLite DB    |
-                              +------------------+
-```
+### Backend (FastAPI)
+- REST API for tasks, standups, projects, auth, and knowledgebase
+- SQLite as the primary relational database
+- Chroma as the vector storage for RAG
+- JWT‑based authentication and simple role model
 
-### Modules
-
-- **Standups** – daily entries, CRUD, AI summary  
-- **Projects** – task grouping, statuses, summary  
-- **Dashboard** – unit & personal snapshot + SITREP  
-- **Knowledge/RAG** – document search with context  
-- **Chat** – LLM conversation  
-- **Code Review** – AI code critique  
-- **Auth/Admin** – users + roles  
+### RAG / Knowledge System
+- Upload PDFs/TXT/MD
+- Automatic text extraction + vector indexing
+- Query endpoint returning context‑aware snippets
+- AI summaries connected to Standups and Dashboard
 
 ---
 
-## Why This Was Built
+## Key Platform Modules
 
-Military/technical units often struggle with:
+### Tasks
+- Create, edit, assign, update statuses
+- Progress tracking & search
+- Archive/unarchive
+- Dashboard integration (My Tasks)
 
-- Scattered communication  
-- No central record of work  
-- Leadership lacking visibility  
-- No automated summaries  
-- Inconsistent standup processes  
-- No shared reference knowledge  
+### Standups
+- Yesterday/Today/Blockers workflow
+- AI-generated daily summary
+- Export to Markdown
+- Convert standup items into tasks
 
-The DevCell Platform solves this by providing:
+### Dashboard
+- My Today (tasks + schedule)
+- Recent tasks & standups
+- Unit snapshot
+- AI SITREP generator
+- Quick actions
 
-- A simple daily workflow  
-- Clear project ownership  
-- Automatic summaries  
-- Searchable internal knowledge  
-- A lightweight system that runs anywhere  
+### Projects
+- Project list and ownership
+- Ties tasks & standups back to larger units of work
 
----
-
-## Who This Is For
-
-- Small development teams  
-- Cyber/IT sections  
-- Military unit dev cells  
-- Research groups  
-- Any team using internal LLMs  
-
----
-
-## How to Use This Document
-
-This file is the **entry point** for anyone onboarding.
-
-After reading this Overview, continue with:
-
-1. **01_Architecture.md** – how the system is built  
-2. **02_Auth.md** – login + roles  
-3. **03_Features.md** – what everything does  
-4. **04–06** – standups, projects, dashboard details  
-5. **07_Deployment.md** – for deployers/admins  
-6. **08_Operations.md** – for day-to-day ops  
+### Knowledgebase
+- Upload → extract → embed → query
+- Index management (list, delete, preview)
+- Backend + UI integration
 
 ---
 
-## Summary
+## Design Principles
 
-The DevCell Platform is a self-contained workflow hub that:
+### 1. **Minimal Dependencies**
+Backend uses FastAPI + SQLite + Chroma; frontend emphasizes clean React patterns with minimal external libraries.
 
-- Keeps your developers aligned  
-- Gives leadership instant visibility  
-- Enhances operations with AI  
-- Runs fully on your own hardware  
-- Scales with your unit’s needs  
+### 2. **Clarity Over Abstraction**
+Clear folder structures:
+- `backend/app/...`
+- `frontend/src/pages/...`
+- `frontend/src/contexts/...`
+- `frontend/src/components/...`
 
-It’s the foundation for an organized, efficient internal development environment.
+### 3. **API-First**
+All features built on clean REST endpoints → easy to integrate with automation or CLI tools later.
+
+### 4. **AI-Native Workflow**
+The system assumes an LLM is part of daily workflow:
+- Standup summaries
+- Knowledge search
+- SITREP dashboard summaries
+
+---
+
+## Current Feature Maturity
+
+| Module        | Status                   |
+|---------------|---------------------------|
+| Auth          | Complete                  |
+| Tasks         | Complete + Phase 2 in progress |
+| Standups      | Complete                  |
+| Dashboard     | Phase 1 done, Phase 2 upcoming |
+| Knowledgebase | Complete (upload/index/query) |
+| Projects      | Core functions complete   |
+| RAG           | Operational                |
+
+---
+
+## Roadmap (High Level)
+
+### Short Term (0.6.x)
+- Dashboard Phase 2 widgets
+- RAG improvements (metadata, search filters)
+- Permissions model expansion
+
+### Mid Term (0.7.x)
+- Unit-level analytics dashboard
+- Enhanced project reports
+- Notification system
+
+### Long Term (1.x)
+- Plugin system
+- Enterprise features
+- Multi-tenant deployment
+
+---
+
+## Who This Platform Is For
+- Small developer teams (military, research, startup)
+- Units needing structured workflow without heavy enterprise tooling
+- Teams with access to a local LLM server
+- Environments requiring self‑hosted, offline‑capable solutions
+
+---
+
+## Related Documents
+- `01_Getting_Started.md`
+- `02_Architecture.md`
+- `03_Developer_Guide.md`
+- `04_Operations.md`
+- `05_API_Reference.md`
