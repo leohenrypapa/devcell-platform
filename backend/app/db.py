@@ -28,7 +28,13 @@ def init_db() -> None:
             username TEXT NOT NULL UNIQUE,
             password_hash TEXT NOT NULL,
             role TEXT NOT NULL,
-            created_at TEXT NOT NULL
+            created_at TEXT NOT NULL,
+            display_name TEXT,
+            job_title TEXT,
+            team_name TEXT,
+            rank TEXT,
+            skills TEXT,
+            is_active INTEGER NOT NULL DEFAULT 1
         );
         """
     )

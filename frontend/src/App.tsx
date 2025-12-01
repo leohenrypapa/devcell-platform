@@ -9,18 +9,22 @@ import ProjectsPage from "./pages/ProjectsPage";
 import AdminPage from "./pages/AdminPage";
 import CodeReviewPage from "./pages/CodeReviewPage";
 import LoginPage from "./pages/LoginPage";
+import RegisterPage from "./pages/RegisterPage";
+import ProfilePage from "./pages/ProfilePage";
 import { useUser } from "./context/UserContext";
 
 const App: React.FC = () => {
   const { isAuthenticated, user } = useUser();
   const location = useLocation();
 
-  const isLoginPage = location.pathname === "/login";
+  const isAuthEntryPage =
+    location.pathname === "/login" || location.pathname === "/register";
 
-  if (isLoginPage) {
+  if (isAuthEntryPage) {
     return (
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     );
@@ -55,6 +59,10 @@ const App: React.FC = () => {
         <Route
           path="/review"
           element={isAuthenticated ? <CodeReviewPage /> : <Navigate to="/login" />}
+        />
+        <Route
+          path="/profile"
+          element={isAuthenticated ? <ProfilePage /> : <Navigate to="/login" />}
         />
         <Route
           path="/admin"

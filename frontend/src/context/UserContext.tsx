@@ -3,8 +3,16 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 export type User = {
   id: number;
   username: string;
-  role: string;
+  role: "user" | "admin";
+  is_active: boolean;
   created_at: string;
+
+  // Profile fields
+  display_name?: string | null;
+  job_title?: string | null;
+  team_name?: string | null;
+  rank?: string | null;
+  skills?: string | null;
 };
 
 type UserContextValue = {
@@ -44,7 +52,9 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({
       .then(async (res) => {
         if (!res.ok) throw new Error("Failed");
         const data = await res.json();
-        setUser(data);
+        // backend may return the user object directly or wrapped as { user }
+        const returnedUser = (data && (data.user ?? data)) as unknown as User;
+        setUser(returnedUser);
       })
       .catch(() => {
         setUser(null);
@@ -67,9 +77,16 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({
         return false;
       }
       const data = await res.json();
-      setUser(data.user);
-      setToken(data.access_token);
-      window.localStorage.setItem(LOCAL_TOKEN_KEY, data.access_token);
+      // Support multiple response shapes: { user, access_token } or { access_token, ...userProps }
+      const returnedUser = (data && (data.user ?? data)) as unknown as User;
+      // Access token keys vary by backend; prefer common keys
+      const accessToken = (data && (data.access_token ?? data.accessToken ?? data.token)) as string | undefined | null;
+
+      setUser(returnedUser);
+      if (accessToken) {
+        setToken(accessToken);
+        window.localStorage.setItem(LOCAL_TOKEN_KEY, accessToken);
+      }
       return true;
     } catch (e) {
       console.error(e);

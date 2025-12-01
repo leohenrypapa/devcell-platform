@@ -1,10 +1,3 @@
-# Changelog
-
-All notable changes to this project will be documented in this file.
-
-The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
 ## [Unreleased]
 
 ### Added
@@ -12,6 +5,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 -
+
+---
+
+## [0.3.0] - 2025-12-01
+
+### Added
+- Expanded user profile system:
+  - New profile fields: `display_name`, `job_title`, `team_name`, `rank`, `skills`, `is_active`.
+  - User profile update endpoint (`PUT /api/auth/me`) for editing own profile fields.
+  - Password change endpoint (`PUT /api/auth/change_password`).
+- Admin create-user endpoint now supports full profile input.
+- Admin user-management capabilities:
+  - Toggle user role (`user`/`admin`).
+  - Activate/disable user accounts (`is_active` flag).
+  - Display all profile fields in the admin user table.
+
+### Changed
+- Registration & admin-create routes now fully validate and accept extended profile fields.
+- Updated `UserPublic` and related Pydantic models to include profile metadata.
+- AdminPage frontend upgraded:
+  - Full create-user form with profile fields.
+  - Improved user table with badges, role toggle, and active state indicators.
+- Updated backend `create_user` logic to properly store new profile fields.
 
 ---
 
