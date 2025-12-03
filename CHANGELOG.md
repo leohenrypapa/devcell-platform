@@ -11,6 +11,22 @@
 
 ---
 
+## [0.5.2] - 2025-12-03
+
+### Added
+- Quick per-task due date controls (+1d/+3d/+7d/Clear) on Tasks page.
+- Bulk status actions (Todo / In Progress / Done / Blocked) for selected tasks.
+- Bulk due date actions (+1d/+3d/+7d/Clear) for selected tasks.
+- Task filter presets (My Active, Blocked Only, All Active) with localStorage persistence.
+
+### Changed
+- Tasks filter toolbar refactored to include preset buttons above detailed filters.
+
+### Fixed
+- N/A
+
+---
+
 ## [0.5.1] - 2025-12-03
 
 ### Added

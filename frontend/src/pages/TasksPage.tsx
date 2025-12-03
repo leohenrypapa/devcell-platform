@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useUser } from "../context/UserContext";
 import { useToast } from "../context/ToastContext";
+import { useNavigate } from "react-router-dom";
 
 type TaskStatus = "todo" | "in_progress" | "done" | "blocked";
 
@@ -46,6 +47,58 @@ type TaskUpdatePayload = Partial<
   >
 >;
 
+type TasksFilterPreset = {
+  mineOnly: boolean;
+  activeOnly: boolean;
+  statusFilter: "" | TaskStatus;
+  projectFilterId: number | null;
+};
+
+const TASKS_FILTER_PRESET_KEY = "devcell-tasks-filter-preset";
+
+const loadTasksFilterPreset = (): TasksFilterPreset | null => {
+  try {
+    const raw = localStorage.getItem(TASKS_FILTER_PRESET_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<TasksFilterPreset>;
+    return {
+      mineOnly: typeof parsed.mineOnly === "boolean" ? parsed.mineOnly : true,
+      activeOnly:
+        typeof parsed.activeOnly === "boolean" ? parsed.activeOnly : true,
+      statusFilter:
+        parsed.statusFilter === "todo" ||
+        parsed.statusFilter === "in_progress" ||
+        parsed.statusFilter === "done" ||
+        parsed.statusFilter === "blocked" ||
+        parsed.statusFilter === ""
+          ? parsed.statusFilter
+          : "",
+      projectFilterId:
+        typeof parsed.projectFilterId === "number"
+          ? parsed.projectFilterId
+          : null,
+    };
+  } catch {
+    return null;
+  }
+};
+
+const saveTasksFilterPreset = (preset: TasksFilterPreset) => {
+  try {
+    localStorage.setItem(TASKS_FILTER_PRESET_KEY, JSON.stringify(preset));
+  } catch {
+    // ignore
+  }
+};
+
+const shiftIsoDateByDays = (isoDate: string | null, days: number): string => {
+  const base = isoDate ? new Date(isoDate) : new Date();
+  // normalize to noon to avoid DST-related weirdness
+  base.setHours(12, 0, 0, 0);
+  base.setDate(base.getDate() + days);
+  return base.toISOString().slice(0, 10);
+};
+
 const getStatusPillStyle = (status: TaskStatus): React.CSSProperties => {
   let backgroundColor = "#6b7280"; // gray (todo)
   if (status === "in_progress") backgroundColor = "#2563eb"; // blue
@@ -82,6 +135,7 @@ const TasksPage: React.FC = () => {
   const { user, isAuthenticated, token } = useUser();
   const isAdmin = user?.role === "admin";
   const { showToast } = useToast();
+  const navigate = useNavigate();
 
   const backendBase =
     (import.meta as any).env.VITE_BACKEND_BASE_URL || "http://localhost:9000";
@@ -110,9 +164,17 @@ const TasksPage: React.FC = () => {
   const [editProjectId, setEditProjectId] = useState<number | null>(null);
   const [editDueDate, setEditDueDate] = useState<string>(""); // YYYY-MM-DD string
 
-  // ---------------------------------------------------------------------------
-  // Load projects (for project filter + edit modal)
-  // ---------------------------------------------------------------------------
+  // Load preset filters on mount
+  useEffect(() => {
+    const preset = loadTasksFilterPreset();
+    if (preset) {
+      setMineOnly(preset.mineOnly);
+      setActiveOnly(preset.activeOnly);
+      setStatusFilter(preset.statusFilter);
+      setProjectFilterId(preset.projectFilterId);
+    }
+  }, []);
+
   const loadProjects = async () => {
     setLoadingProjects(true);
     setProjectsError(null);
@@ -131,9 +193,6 @@ const TasksPage: React.FC = () => {
     }
   };
 
-  // ---------------------------------------------------------------------------
-  // Load tasks (honors filters)
-  // ---------------------------------------------------------------------------
   const loadTasks = async () => {
     if (!isAuthenticated || !token) {
       setTasks([]);
@@ -194,9 +253,6 @@ const TasksPage: React.FC = () => {
     }
   }, [isAuthenticated, mineOnly, activeOnly, statusFilter, projectFilterId, token]);
 
-  // ---------------------------------------------------------------------------
-  // Create / Update / Delete
-  // ---------------------------------------------------------------------------
   const handleCreateTask = async () => {
     if (!isAuthenticated || !token) {
       showToast("You must be signed in to create a task.", "error");
@@ -258,7 +314,6 @@ const TasksPage: React.FC = () => {
       }
 
       await loadTasks();
-      // Optional: showToast("Task updated.", "success");
     } catch (err) {
       console.error(err);
       showToast("Failed to update task.", "error");
@@ -303,7 +358,6 @@ const TasksPage: React.FC = () => {
     await handleUpdateTask(taskId, { is_active: true });
   };
 
-  // Selection helpers for bulk actions
   const toggleTaskSelection = (taskId: number) => {
     setSelectedTaskIds((prev) =>
       prev.includes(taskId) ? prev.filter((id) => id !== taskId) : [...prev, taskId]
@@ -314,18 +368,119 @@ const TasksPage: React.FC = () => {
     setSelectedTaskIds([]);
   };
 
-  // ---------------------------------------------------------------------------
-  // Edit modal handlers
-  // ---------------------------------------------------------------------------
+  const applyPreset = (presetName: "myActive" | "blockedOnly" | "allActive") => {
+    let preset: TasksFilterPreset;
+    if (presetName === "myActive") {
+      preset = {
+        mineOnly: true,
+        activeOnly: true,
+        statusFilter: "",
+        projectFilterId: null,
+      };
+    } else if (presetName === "blockedOnly") {
+      preset = {
+        mineOnly: true,
+        activeOnly: true,
+        statusFilter: "blocked",
+        projectFilterId: null,
+      };
+    } else {
+      // allActive
+      preset = {
+        mineOnly: false,
+        activeOnly: true,
+        statusFilter: "",
+        projectFilterId: null,
+      };
+    }
+
+    setMineOnly(preset.mineOnly);
+    setActiveOnly(preset.activeOnly);
+    setStatusFilter(preset.statusFilter);
+    setProjectFilterId(preset.projectFilterId);
+    saveTasksFilterPreset(preset);
+  };
+
+  const handleBulkStatusChange = async (status: TaskStatus) => {
+    if (selectedTaskIds.length === 0) return;
+    const confirmed = window.confirm(
+      `Set status to "${status}" for ${selectedTaskIds.length} task(s)?`
+    );
+    if (!confirmed) return;
+
+    try {
+      await Promise.all(
+        selectedTaskIds.map((id) => handleUpdateTask(id, { status }))
+      );
+      showToast("Bulk status update complete.", "success");
+    } catch (err) {
+      console.error(err);
+      showToast("Bulk status update failed for some tasks.", "error");
+    }
+  };
+
+  const handleBulkShiftDueDate = async (days: number) => {
+    if (selectedTaskIds.length === 0) return;
+    const confirmed = window.confirm(
+      `Shift due date by +${days} day(s) for ${selectedTaskIds.length} task(s)?`
+    );
+    if (!confirmed) return;
+
+    const selectedTasks = tasks.filter((t) => selectedTaskIds.includes(t.id));
+    try {
+      await Promise.all(
+        selectedTasks.map((t) =>
+          handleUpdateTask(t.id, {
+            due_date: shiftIsoDateByDays(t.due_date ?? null, days),
+          })
+        )
+      );
+      showToast("Bulk due date shift complete.", "success");
+    } catch (err) {
+      console.error(err);
+      showToast("Bulk due date shift failed for some tasks.", "error");
+    }
+  };
+
+  const handleBulkClearDueDate = async () => {
+    if (selectedTaskIds.length === 0) return;
+    const confirmed = window.confirm(
+      `Clear due date for ${selectedTaskIds.length} task(s)?`
+    );
+    if (!confirmed) return;
+
+    try {
+      await Promise.all(
+        selectedTaskIds.map((id) =>
+          handleUpdateTask(id, {
+            due_date: null,
+          })
+        )
+      );
+      showToast("Bulk due dates cleared.", "success");
+    } catch (err) {
+      console.error(err);
+      showToast("Bulk due date clear failed for some tasks.", "error");
+    }
+  };
+
+  const handleQuickShiftDueDate = (task: Task, days: number) => {
+    handleUpdateTask(task.id, {
+      due_date: shiftIsoDateByDays(task.due_date ?? null, days),
+    });
+  };
+
+  const handleQuickClearDueDate = (task: Task) => {
+    handleUpdateTask(task.id, { due_date: null });
+  };
+
   const openEditModal = (task: Task) => {
     setEditingTask(task);
     setEditTitle(task.title);
     setEditDescription(task.description || "");
     setEditProjectId(task.project_id ?? null);
 
-    // Normalize due_date to yyyy-mm-dd if present
     if (task.due_date) {
-      // If backend returns full ISO with time, slice it; otherwise use as-is
       const d = task.due_date.slice(0, 10);
       setEditDueDate(d);
     } else {
@@ -347,9 +502,8 @@ const TasksPage: React.FC = () => {
     };
 
     if (editDueDate) {
-      payload.due_date = editDueDate; // "YYYY-MM-DD"
+      payload.due_date = editDueDate;
     } else {
-      // Send explicit null to clear due date
       payload.due_date = null;
     }
 
@@ -357,9 +511,10 @@ const TasksPage: React.FC = () => {
     closeEditModal();
   };
 
-  // ---------------------------------------------------------------------------
-  // Render
-  // ---------------------------------------------------------------------------
+  const handleGoToStandup = (standupId: number) => {
+    navigate("/standups", { state: { focusStandupId: standupId } });
+  };
+
   const normalizedSearch = searchTerm.trim().toLowerCase();
   const filteredTasks = normalizedSearch
     ? tasks.filter((t) => {
@@ -388,15 +543,42 @@ const TasksPage: React.FC = () => {
         <p style={{ color: "red" }}>You must be logged in to view tasks.</p>
       )}
 
-      {/* Filters */}
+      {/* Preset filters */}
       <div
         style={{
           marginTop: "1rem",
+          marginBottom: "0.25rem",
+          display: "flex",
+          flexWrap: "wrap",
+          gap: "0.5rem",
+          alignItems: "center",
+          fontSize: "0.85rem",
+        }}
+      >
+        <span style={{ fontWeight: 500 }}>Presets:</span>
+        <button type="button" onClick={() => applyPreset("myActive")}>
+          My Active
+        </button>
+        <button type="button" onClick={() => applyPreset("blockedOnly")}>
+          Blocked Only
+        </button>
+        {isAdmin && (
+          <button type="button" onClick={() => applyPreset("allActive")}>
+            All Active
+          </button>
+        )}
+      </div>
+
+      {/* Detailed filters */}
+      <div
+        style={{
+          marginTop: "0.5rem",
           marginBottom: "0.75rem",
           display: "flex",
           flexWrap: "wrap",
           gap: "0.75rem",
           alignItems: "center",
+          fontSize: "0.9rem",
         }}
       >
         <label style={{ fontSize: "0.9rem" }}>
@@ -471,7 +653,6 @@ const TasksPage: React.FC = () => {
         </button>
       </div>
 
-      {/* Bulk actions bar */}
       <div
         style={{
           marginBottom: "0.75rem",
@@ -561,6 +742,76 @@ const TasksPage: React.FC = () => {
         >
           Delete Selected
         </button>
+
+        {/* Bulk status */}
+        <span style={{ marginLeft: "1rem" }}>Bulk status:</span>
+        <button
+          type="button"
+          disabled={selectedTaskIds.length === 0}
+          onClick={() => handleBulkStatusChange("todo")}
+          style={{ fontSize: "0.8rem" }}
+        >
+          Todo
+        </button>
+        <button
+          type="button"
+          disabled={selectedTaskIds.length === 0}
+          onClick={() => handleBulkStatusChange("in_progress")}
+          style={{ fontSize: "0.8rem" }}
+        >
+          In Progress
+        </button>
+        <button
+          type="button"
+          disabled={selectedTaskIds.length === 0}
+          onClick={() => handleBulkStatusChange("done")}
+          style={{ fontSize: "0.8rem" }}
+        >
+          Done
+        </button>
+        <button
+          type="button"
+          disabled={selectedTaskIds.length === 0}
+          onClick={() => handleBulkStatusChange("blocked")}
+          style={{ fontSize: "0.8rem" }}
+        >
+          Blocked
+        </button>
+
+        {/* Bulk due date */}
+        <span style={{ marginLeft: "1rem" }}>Bulk due:</span>
+        <button
+          type="button"
+          disabled={selectedTaskIds.length === 0}
+          onClick={() => handleBulkShiftDueDate(1)}
+          style={{ fontSize: "0.8rem" }}
+        >
+          +1d
+        </button>
+        <button
+          type="button"
+          disabled={selectedTaskIds.length === 0}
+          onClick={() => handleBulkShiftDueDate(3)}
+          style={{ fontSize: "0.8rem" }}
+        >
+          +3d
+        </button>
+        <button
+          type="button"
+          disabled={selectedTaskIds.length === 0}
+          onClick={() => handleBulkShiftDueDate(7)}
+          style={{ fontSize: "0.8rem" }}
+        >
+          +7d
+        </button>
+        <button
+          type="button"
+          disabled={selectedTaskIds.length === 0}
+          onClick={handleBulkClearDueDate}
+          style={{ fontSize: "0.8rem" }}
+        >
+          Clear
+        </button>
       </div>
 
       {projectsError && (
@@ -575,7 +826,6 @@ const TasksPage: React.FC = () => {
         </div>
       )}
 
-      {/* Task List */}
       {loadingTasks ? (
         <p>Loading tasks...</p>
       ) : filteredTasks.length === 0 ? (
@@ -601,7 +851,6 @@ const TasksPage: React.FC = () => {
                   gap: "0.75rem",
                 }}
               >
-                {/* Selection checkbox column */}
                 <div style={{ paddingTop: "0.2rem" }}>
                   <input
                     type="checkbox"
@@ -610,7 +859,6 @@ const TasksPage: React.FC = () => {
                   />
                 </div>
 
-                {/* Left main column */}
                 <div style={{ flex: 1 }}>
                   <strong>{t.title}</strong>
                   {t.project_name && (
@@ -619,14 +867,12 @@ const TasksPage: React.FC = () => {
                     </span>
                   )}
 
-                  {/* Status pill */}
                   <div style={{ marginTop: "0.25rem" }}>
                     <span style={getStatusPillStyle(t.status)}>
                       {formatStatusLabel(t.status)}
                     </span>
                   </div>
 
-                  {/* Meta line: owner / created / due / archived / origin standup */}
                   <div
                     style={{
                       fontSize: "0.8rem",
@@ -637,12 +883,51 @@ const TasksPage: React.FC = () => {
                     Owner: {t.owner}
                     {" · "}
                     Created: {new Date(t.created_at).toLocaleString()}
-                    {t.due_date && (
-                      <>
-                        {" · "}Due:{" "}
-                        {new Date(t.due_date).toLocaleDateString()}
-                      </>
-                    )}
+                    {" · "}
+                    Due:{" "}
+                    {t.due_date
+                      ? new Date(t.due_date).toLocaleDateString()
+                      : "None"}{" "}
+                    <button
+                      type="button"
+                      onClick={() => handleQuickShiftDueDate(t, 1)}
+                      style={{
+                        fontSize: "0.7rem",
+                        marginLeft: "0.25rem",
+                      }}
+                    >
+                      +1d
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleQuickShiftDueDate(t, 3)}
+                      style={{
+                        fontSize: "0.7rem",
+                        marginLeft: "0.15rem",
+                      }}
+                    >
+                      +3d
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleQuickShiftDueDate(t, 7)}
+                      style={{
+                        fontSize: "0.7rem",
+                        marginLeft: "0.15rem",
+                      }}
+                    >
+                      +7d
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleQuickClearDueDate(t)}
+                      style={{
+                        fontSize: "0.7rem",
+                        marginLeft: "0.15rem",
+                      }}
+                    >
+                      Clear
+                    </button>
                     {!t.is_active && (
                       <>
                         {" · "}
@@ -652,7 +937,22 @@ const TasksPage: React.FC = () => {
                     {t.origin_standup_id != null && (
                       <>
                         {" · "}
-                        <span>From Standup #{t.origin_standup_id}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleGoToStandup(t.origin_standup_id!)}
+                          style={{
+                            border: "none",
+                            background: "none",
+                            padding: 0,
+                            margin: 0,
+                            cursor: "pointer",
+                            fontSize: "0.8rem",
+                            color: "#2563eb",
+                            textDecoration: "underline",
+                          }}
+                        >
+                          From Standup #{t.origin_standup_id}
+                        </button>
                       </>
                     )}
                   </div>
@@ -661,7 +961,6 @@ const TasksPage: React.FC = () => {
                     <div style={{ marginTop: "0.25rem" }}>{t.description}</div>
                   )}
 
-                  {/* Progress bar */}
                   <div style={{ marginTop: "0.4rem" }}>
                     <div
                       style={{
@@ -693,7 +992,6 @@ const TasksPage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Right controls column */}
                 <div
                   style={{
                     display: "flex",
@@ -793,7 +1091,6 @@ const TasksPage: React.FC = () => {
         </ul>
       )}
 
-      {/* Edit Modal */}
       {editingTask && (
         <div
           style={{

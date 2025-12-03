@@ -1,7 +1,6 @@
 # Python
 __pycache__/
 *.py[cod]
-*.pyo
 .python-version
 .venv/
 venv/
@@ -15,7 +14,7 @@ devcell.db
 uvicorn.log
 
 # Node
-node_modules/
+**/node_modules/
 frontend/dist/
 
 # Env
@@ -34,7 +33,8 @@ chroma_store/
 */chroma_store/
 **/chroma_store/
 **/chroma/
-**/db/
+# Be careful with this; uncomment only if you truly want to ignore all db dirs
+# **/db/
 
 # Binary DB formats
 *.sqlite*
@@ -47,6 +47,13 @@ chroma_store/
 *.faiss
 *.hnsw
 index_store/
+
+# Python tooling caches (optional)
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+*.egg-info/
 
 # Ignore specific text and shell files
 devcell_feature_bundle.txt

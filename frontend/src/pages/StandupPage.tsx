@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useUser } from "../context/UserContext";
 import { useToast } from "../context/ToastContext";
 import StandupTaskConvertModal from "../components/StandupTaskConvertModal";
+import { useLocation } from "react-router-dom";
 
 type StandupEntry = {
   id: number;
@@ -59,6 +60,7 @@ type TaskListResponse = {
 const StandupPage: React.FC = () => {
   const { user, isAuthenticated, token } = useUser();
   const { showToast } = useToast();
+  const location = useLocation();
 
   const loggedInName = user?.username ?? "";
   const [showMineOnly, setShowMineOnly] = useState(false);
@@ -83,7 +85,7 @@ const StandupPage: React.FC = () => {
   const [loadingProjects, setLoadingProjects] = useState(false);
 
   const [selectedDate, setSelectedDate] = useState<string>(() => {
-    return new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    return new Date().toISOString().slice(0, 10);
   });
 
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -95,6 +97,12 @@ const StandupPage: React.FC = () => {
 
   const [linkedTasksByStandup, setLinkedTasksByStandup] = useState<Record<number, Task[]>>({});
   const [loadingLinkedTasksByStandup, setLoadingLinkedTasksByStandup] = useState<Record<number, boolean>>({});
+
+  const [highlightedTaskIdsByStandup, setHighlightedTaskIdsByStandup] = useState<Record<number, number[]>>({});
+  const [focusedStandupId, setFocusedStandupId] = useState<number | null>(() => {
+    const state = location.state as any;
+    return state?.focusStandupId ?? null;
+  });
 
   const backendBase =
     (import.meta as any).env.VITE_BACKEND_BASE_URL || "http://localhost:9000";
@@ -143,7 +151,6 @@ const StandupPage: React.FC = () => {
       const items = data.items || [];
       setEntries(items);
 
-      // Preload linked tasks for the visible standups (if authenticated).
       if (isAuthenticated && token) {
         items.forEach((entry) => {
           loadLinkedTasksForStandup(entry.id);
@@ -166,7 +173,6 @@ const StandupPage: React.FC = () => {
       setProjects(data.items || []);
     } catch (err) {
       console.error(err);
-      // not fatal
     } finally {
       setLoadingProjects(false);
     }
@@ -288,7 +294,7 @@ const StandupPage: React.FC = () => {
     setError(null);
     try {
       const body: any = {
-        name: loggedInName || "Unknown", // backend will override anyway
+        name: loggedInName || "Unknown",
         yesterday,
         today,
         blockers,
@@ -344,7 +350,6 @@ const StandupPage: React.FC = () => {
       return;
     }
 
-    // Derive a reasonable title from the first line or sentence
     let titleSource = trimmedToday.split("\n")[0];
     if (titleSource.length > 120) {
       titleSource = titleSource.slice(0, 117) + "...";
@@ -361,7 +366,6 @@ const StandupPage: React.FC = () => {
       status: "in_progress",
     };
 
-    // If a project is selected on the standup form, reuse it
     if (selectedProjectId !== null) {
       body.project_id = selectedProjectId;
     }
@@ -380,7 +384,6 @@ const StandupPage: React.FC = () => {
         throw new Error(`HTTP ${res.status}`);
       }
 
-      // Refresh "My Tasks" panel so the new task appears
       await loadMyTasks(taskFilterProjectId);
       showToast("Task created from standup 'Today' text.", "success");
     } catch (err) {
@@ -431,7 +434,6 @@ const StandupPage: React.FC = () => {
         alert("Copy failed. You can still manually select and copy the text.");
       });
     } else {
-      // Fallback
       alert("Clipboard API not available. Please select and copy manually.");
     }
   };
@@ -458,7 +460,6 @@ const StandupPage: React.FC = () => {
         return;
       }
 
-      // Reload current date's standups
       await loadStandupsForDate(selectedDate);
     } catch (err) {
       console.error(err);
@@ -525,14 +526,12 @@ const StandupPage: React.FC = () => {
 
     const md = lines.join("\n");
 
-    // Try to copy to clipboard
     try {
       await navigator.clipboard.writeText(md);
       alert("Standups exported as Markdown and copied to clipboard.");
     } catch (err) {
       console.error("Failed to copy to clipboard, downloading instead.", err);
 
-      // Fallback: download as .md file
       const blob = new Blob([md], { type: "text/markdown" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -544,6 +543,19 @@ const StandupPage: React.FC = () => {
       URL.revokeObjectURL(url);
     }
   };
+
+  // Scroll + highlight when navigated from TasksPage
+  useEffect(() => {
+    if (!focusedStandupId || entries.length === 0) return;
+    const el = document.getElementById(`standup-card-${focusedStandupId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+    const idToHighlight = focusedStandupId;
+    setTimeout(() => {
+      setFocusedStandupId((prev) => (prev === idToHighlight ? null : prev));
+    }, 4000);
+  }, [focusedStandupId, entries]);
 
   return (
     <div>
@@ -627,7 +639,6 @@ const StandupPage: React.FC = () => {
             />
           </label>
 
-          {/* Create task from Today text */}
           <div style={{ marginTop: "0.35rem" }}>
             <button
               type="button"
@@ -692,13 +703,13 @@ const StandupPage: React.FC = () => {
             {!isToday && " (historical view)"}
           </h2>
 
-        <button
-          type="button"
-          onClick={handleExportStandupsMarkdown}
-          style={{ fontSize: "0.8rem" }}
-        >
-          Export as Markdown
-        </button>
+          <button
+            type="button"
+            onClick={handleExportStandupsMarkdown}
+            style={{ fontSize: "0.8rem" }}
+          >
+            Export as Markdown
+          </button>
         </div>
 
         <div style={{ marginBottom: "0.5rem", fontSize: "0.9rem" }}>
@@ -722,15 +733,26 @@ const StandupPage: React.FC = () => {
             {displayEntries.map((e) => {
               const linkedTasks = linkedTasksByStandup[e.id] || [];
               const linkedLoading = !!loadingLinkedTasksByStandup[e.id];
+              const highlightedIds = new Set(
+                highlightedTaskIdsByStandup[e.id] || []
+              );
+              const taskCount = linkedTasks.length;
+
+              const isFocused = focusedStandupId === e.id;
 
               return (
                 <li
                   key={e.id}
+                  id={`standup-card-${e.id}`}
                   style={{
                     border: "1px solid #ddd",
                     borderRadius: "4px",
                     padding: "0.75rem",
                     marginBottom: "0.5rem",
+                    boxShadow: isFocused
+                      ? "0 0 0 2px #2563eb"
+                      : "none",
+                    backgroundColor: isFocused ? "#eff6ff" : "white",
                   }}
                 >
                   <div
@@ -741,8 +763,21 @@ const StandupPage: React.FC = () => {
                       gap: "0.5rem",
                     }}
                   >
-                    <div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                       <strong>{e.name}</strong>
+                      {taskCount > 0 && (
+                        <span
+                          style={{
+                            fontSize: "0.75rem",
+                            padding: "0.1rem 0.5rem",
+                            borderRadius: "999px",
+                            backgroundColor: "#e5f3ff",
+                            color: "#1d4ed8",
+                          }}
+                        >
+                          {taskCount} task{taskCount === 1 ? "" : "s"}
+                        </span>
+                      )}
                     </div>
                     <div
                       style={{
@@ -821,45 +856,58 @@ const StandupPage: React.FC = () => {
                           marginTop: "0.35rem",
                         }}
                       >
-                        {linkedTasks.map((t) => (
-                          <li
-                            key={t.id}
-                            style={{ marginBottom: "0.25rem" }}
-                          >
-                            <span
+                        {linkedTasks.map((t) => {
+                          const isHighlighted = highlightedIds.has(t.id);
+                          return (
+                            <li
+                              key={t.id}
                               style={{
-                                fontSize: "0.75rem",
-                                padding: "0.1rem 0.4rem",
-                                borderRadius: "999px",
-                                backgroundColor:
-                                  t.status === "done"
-                                    ? "#16a34a"
-                                    : t.status === "in_progress"
-                                    ? "#2563eb"
-                                    : t.status === "blocked"
-                                    ? "#b91c1c"
-                                    : "#6b7280",
-                                color: "#fff",
-                                marginRight: "0.35rem",
+                                marginBottom: "0.25rem",
+                                padding: "0.15rem 0.25rem",
+                                borderRadius: "4px",
+                                backgroundColor: isHighlighted
+                                  ? "#ecfdf3"
+                                  : "transparent",
+                                transition: "background-color 0.2s ease-out",
                               }}
                             >
-                              {t.status}
-                            </span>
-                            <strong>{t.title}</strong>
-                            {t.project_name && (
-                              <span style={{ opacity: 0.8 }}>
-                                {" "}
-                                [{t.project_name}]
+                              <span
+                                style={{
+                                  fontSize: "0.75rem",
+                                  padding: "0.1rem 0.4rem",
+                                  borderRadius: "999px",
+                                  backgroundColor:
+                                    t.status === "done"
+                                      ? "#16a34a"
+                                      : t.status === "in_progress"
+                                      ? "#2563eb"
+                                      : t.status === "blocked"
+                                      ? "#b91c1c"
+                                      : "#6b7280",
+                                  color: "#fff",
+                                  marginRight: "0.35rem",
+                                }}
+                              >
+                                {t.status}
                               </span>
-                            )}
-                            {t.due_date && (
-                              <span style={{ marginLeft: "0.35rem", opacity: 0.8 }}>
-                                Due:{" "}
-                                {new Date(t.due_date).toLocaleDateString()}
-                              </span>
-                            )}
-                          </li>
-                        ))}
+                              <strong>{t.title}</strong>
+                              {t.project_name && (
+                                <span style={{ opacity: 0.8 }}>
+                                  {" "}
+                                  [{t.project_name}]
+                                </span>
+                              )}
+                              {t.due_date && (
+                                <span
+                                  style={{ marginLeft: "0.35rem", opacity: 0.8 }}
+                                >
+                                  Due:{" "}
+                                  {new Date(t.due_date).toLocaleDateString()}
+                                </span>
+                              )}
+                            </li>
+                          );
+                        })}
                       </ul>
                     )}
                   </div>
@@ -1049,13 +1097,26 @@ const StandupPage: React.FC = () => {
           projects={projects}
           backendBase={backendBase}
           onClose={() => setConvertTarget(null)}
-          onConverted={(createdCount) => {
-            // Refresh linked tasks + "My Tasks" after conversion
-            loadLinkedTasksForStandup(convertTarget.id);
+          onConverted={(result) => {
+            const standupId = convertTarget.id;
+            loadLinkedTasksForStandup(standupId);
             loadMyTasks(taskFilterProjectId);
             setConvertTarget(null);
+            if (result.taskIds.length > 0) {
+              setHighlightedTaskIdsByStandup((prev) => ({
+                ...prev,
+                [standupId]: result.taskIds,
+              }));
+              setTimeout(() => {
+                setHighlightedTaskIdsByStandup((prev) => {
+                  const copy = { ...prev };
+                  delete copy[standupId];
+                  return copy;
+                });
+              }, 4000);
+            }
             showToast(
-              `Created ${createdCount} task(s) from standup.`,
+              `Created ${result.count} task(s) from standup.`,
               "success"
             );
           }}
