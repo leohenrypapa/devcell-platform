@@ -1,3 +1,4 @@
+// filename: frontend/src/pages/DashboardPage.tsx
 import React, { useEffect, useState } from "react";
 import { useUser } from "../context/UserContext";
 
@@ -21,12 +22,14 @@ type StandupSummaryResponse = {
   count: number;
 };
 
+type ProjectStatus = "planned" | "active" | "blocked" | "done";
+
 type Project = {
   id: number;
   name: string;
   description: string;
   owner: string;
-  status: "planned" | "active" | "blocked" | "done";
+  status: ProjectStatus;
   created_at: string;
 };
 
@@ -34,7 +37,7 @@ type ProjectListResponse = {
   items: Project[];
 };
 
-// 🔹 Tasks types
+// 🔹 Task types
 type TaskStatus = "todo" | "in_progress" | "done" | "blocked";
 
 type Task = {
@@ -60,6 +63,9 @@ type RecentStandupGroup = {
   entries: StandupEntry[];
 };
 
+const backendBase =
+  (import.meta as any).env.VITE_BACKEND_BASE_URL || "http://localhost:9000";
+
 const formatTaskStatusLabel = (status: TaskStatus): string => {
   switch (status) {
     case "todo":
@@ -78,9 +84,6 @@ const formatTaskStatusLabel = (status: TaskStatus): string => {
 const DashboardPage: React.FC = () => {
   const { user, isAuthenticated, token } = useUser();
   const loggedInName = user?.username ?? "";
-
-  const backendBase =
-    (import.meta as any).env.VITE_BACKEND_BASE_URL || "http://localhost:9000";
 
   const [todayStandups, setTodayStandups] = useState<StandupEntry[]>([]);
   const [myTodayStandups, setMyTodayStandups] = useState<StandupEntry[]>([]);
@@ -101,7 +104,7 @@ const DashboardPage: React.FC = () => {
   const [recentStandups, setRecentStandups] = useState<RecentStandupGroup[]>([]);
   const [recentStandupsLoading, setRecentStandupsLoading] = useState(false);
   const [recentStandupsError, setRecentStandupsError] = useState<string | null>(
-    null
+    null,
   );
 
   const [summary, setSummary] = useState<string | null>(null);
@@ -111,26 +114,27 @@ const DashboardPage: React.FC = () => {
 
   const todayStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 
+  // 🔹 Today’s standups
   const loadTodayStandups = async () => {
     setStandupsLoading(true);
     setStandupsError(null);
 
     try {
       const res = await fetch(
-        `${backendBase}/api/standup/by-date?date=${encodeURIComponent(
-          todayStr
-        )}`
+        `${backendBase}/api/standup/by-date?date=${encodeURIComponent(todayStr)}`,
       );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data: StandupListResponse = await res.json();
       const items = data.items || [];
       setTodayStandups(items);
+
       if (loggedInName) {
-        setMyTodayStandups(items.filter((e) => e.name === loggedInName));
+        setMyTodayStandups(items.filter((entry) => entry.name === loggedInName));
       } else {
         setMyTodayStandups([]);
       }
     } catch (err) {
+      // eslint-disable-next-line no-console
       console.error(err);
       setStandupsError("Failed to load today's standups.");
     } finally {
@@ -138,6 +142,7 @@ const DashboardPage: React.FC = () => {
     }
   };
 
+  // 🔹 All projects
   const loadProjects = async () => {
     setProjectsLoading(true);
     setProjectsError(null);
@@ -148,12 +153,14 @@ const DashboardPage: React.FC = () => {
       const data: ProjectListResponse = await res.json();
       const items = data.items || [];
       setProjects(items);
+
       if (loggedInName) {
         setMyProjects(items.filter((p) => p.owner === loggedInName));
       } else {
         setMyProjects([]);
       }
     } catch (err) {
+      // eslint-disable-next-line no-console
       console.error(err);
       setProjectsError("Failed to load projects.");
     } finally {
@@ -178,13 +185,14 @@ const DashboardPage: React.FC = () => {
           headers: {
             Authorization: `Bearer ${token}`,
           },
-        }
+        },
       );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data: TaskListResponse = await res.json();
       const items = data.items || [];
       setMyTasks(items);
     } catch (err) {
+      // eslint-disable-next-line no-console
       console.error(err);
       setTasksError("Failed to load your active tasks.");
     } finally {
@@ -200,7 +208,8 @@ const DashboardPage: React.FC = () => {
     try {
       const today = new Date();
       const dates: string[] = [];
-      for (let i = 0; i < 3; i++) {
+
+      for (let i = 0; i < 3; i += 1) {
         const d = new Date(today);
         d.setDate(today.getDate() - i);
         dates.push(d.toISOString().slice(0, 10));
@@ -211,8 +220,8 @@ const DashboardPage: React.FC = () => {
           try {
             const res = await fetch(
               `${backendBase}/api/standup/by-date?date=${encodeURIComponent(
-                dateStr
-              )}`
+                dateStr,
+              )}`,
             );
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data: StandupListResponse = await res.json();
@@ -221,15 +230,17 @@ const DashboardPage: React.FC = () => {
               entries: data.items || [],
             } as RecentStandupGroup;
           } catch (err) {
+            // eslint-disable-next-line no-console
             console.error("Failed to load standups for", dateStr, err);
             return { date: dateStr, entries: [] };
           }
-        })
+        }),
       );
 
       const nonEmpty = groups.filter((g) => g.entries.length > 0);
       setRecentStandups(nonEmpty);
     } catch (err) {
+      // eslint-disable-next-line no-console
       console.error(err);
       setRecentStandupsError("Failed to load recent standups.");
     } finally {
@@ -250,6 +261,7 @@ const DashboardPage: React.FC = () => {
       setSummary(data.summary);
       setSummaryCount(data.count);
     } catch (err) {
+      // eslint-disable-next-line no-console
       console.error(err);
       setSummaryError("Failed to load AI summary.");
     } finally {
@@ -267,229 +279,215 @@ const DashboardPage: React.FC = () => {
 
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text).catch((err) => {
+        // eslint-disable-next-line no-console
         console.error("Failed to copy:", err);
-        alert("Copy failed. You can still manually select and copy the text.");
+        // Fallback UX is still acceptable here
+        // eslint-disable-next-line no-alert
+        alert(
+          "Copy failed. You can still manually select and copy the text.",
+        );
       });
     } else {
+      // eslint-disable-next-line no-alert
       alert("Clipboard API not available. Please select and copy manually.");
     }
   };
 
   useEffect(() => {
+    // Initial dashboard load
     loadTodayStandups();
     loadProjects();
     loadMyTasks();
     loadRecentStandups();
-    loadSummary();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loggedInName, isAuthenticated, token]);
 
   const totalStandups = todayStandups.length;
 
-  const projectCounts = projects.reduce(
-    (acc, p) => {
-      acc[p.status] = (acc[p.status] || 0) + 1;
+  const projectCounts = projects.reduce<Record<ProjectStatus, number>>(
+    (acc, project) => {
+      acc[project.status] = (acc[project.status] ?? 0) + 1;
       return acc;
     },
-    {} as Record<string, number>
+    {
+      planned: 0,
+      active: 0,
+      blocked: 0,
+      done: 0,
+    },
   );
 
-  // 🔹 Derived task metrics
-  const totalMyTasks = myTasks.length;
-  const myTasksByStatus: Record<TaskStatus, number> = {
-    todo: 0,
-    in_progress: 0,
-    done: 0,
-    blocked: 0,
-  };
-  myTasks.forEach((t) => {
-    myTasksByStatus[t.status] = (myTasksByStatus[t.status] || 0) + 1;
-  });
-
-  const parseTs = (iso?: string | null) =>
-    iso ? new Date(iso).getTime() : 0;
-
-  const recentTasks: Task[] =
-    totalMyTasks > 0
-      ? [...myTasks]
-          .sort((a, b) => {
-            const ta = parseTs(a.updated_at) || parseTs(a.created_at);
-            const tb = parseTs(b.updated_at) || parseTs(b.created_at);
-            return tb - ta;
-          })
-          .slice(0, 5)
-      : [];
+  const taskCounts = myTasks.reduce<Record<TaskStatus, number>>(
+    (acc, task) => {
+      acc[task.status] = (acc[task.status] ?? 0) + 1;
+      return acc;
+    },
+    {
+      todo: 0,
+      in_progress: 0,
+      done: 0,
+      blocked: 0,
+    },
+  );
 
   return (
-    <div>
-      <h1>Dashboard</h1>
-      <p>
-        Quick snapshot of today&apos;s standups, your projects, your active tasks,
-        and an AI-generated SITREP you can copy into reports or emails.
+    <div
+      style={{
+        maxWidth: 1100,
+        margin: "0 auto",
+        padding: "1.5rem 1rem",
+      }}
+    >
+      <h1>DevCell Dashboard</h1>
+      <p style={{ fontSize: "0.9rem", opacity: 0.8 }}>
+        Daily snapshot of your activity and the unit&apos;s standups, projects,
+        and AI-generated SITREP.
       </p>
 
-      {!isAuthenticated && (
-        <p style={{ color: "red", marginTop: "0.5rem" }}>
-          You are not signed in. Some personalized sections may be empty.
-        </p>
-      )}
-
-      {/* Row 1: My Today + Unit Snapshot */}
+      {/* Row 1: My Status + Unit Snapshot */}
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "1.2fr 1fr",
+          gridTemplateColumns: "minmax(0, 1.3fr) minmax(0, 1fr)",
           gap: "1rem",
-          marginTop: "1.5rem",
+          marginTop: "1rem",
         }}
       >
-        {/* My Today */}
+        {/* My status */}
         <div
           style={{
             border: "1px solid #ccc",
-            borderRadius: "6px",
+            borderRadius: 6,
             padding: "1rem",
           }}
         >
-          <h2>My Today</h2>
+          <h2>My Status (Today)</h2>
           <p style={{ fontSize: "0.9rem", opacity: 0.8 }}>
-            Date: <strong>{todayStr}</strong>{" "}
-            {loggedInName && (
-              <>
-                | Signed in as <strong>{loggedInName}</strong>
-              </>
-            )}
+            Standups and tasks associated with <strong>{loggedInName}</strong>{" "}
+            today.
           </p>
 
-          {/* 🔹 My Active Tasks */}
-          <h3 style={{ marginTop: "0.75rem" }}>My Active Tasks</h3>
-          {tasksLoading ? (
-            <p>Loading tasks...</p>
-          ) : tasksError ? (
-            <p style={{ color: "red" }}>{tasksError}</p>
-          ) : totalMyTasks === 0 ? (
-            <p style={{ fontSize: "0.9rem", opacity: 0.8 }}>
-              You have no active tasks. Create one on the{" "}
-              <a href="/tasks">Tasks</a> page.
-            </p>
-          ) : (
-            <>
-              <p style={{ fontSize: "0.9rem" }}>
-                You have <strong>{totalMyTasks}</strong> active task
-                {totalMyTasks === 1 ? "" : "s"}.
+          {/* My standups */}
+          <div style={{ marginTop: "0.75rem" }}>
+            <h3>My Standups Today</h3>
+            {standupsLoading ? (
+              <p>Loading standups…</p>
+            ) : standupsError ? (
+              <p style={{ color: "red" }}>{standupsError}</p>
+            ) : myTodayStandups.length === 0 ? (
+              <p style={{ fontSize: "0.9rem", opacity: 0.8 }}>
+                No standups recorded by you today.
               </p>
-              <ul
-                style={{
-                  fontSize: "0.9rem",
-                  paddingLeft: "1.2rem",
-                  marginTop: "0.25rem",
-                }}
-              >
-                <li>Todo: {myTasksByStatus.todo}</li>
-                <li>In Progress: {myTasksByStatus.in_progress}</li>
-                <li>Done: {myTasksByStatus.done}</li>
-                <li>Blocked: {myTasksByStatus.blocked}</li>
-              </ul>
-              <p style={{ marginTop: "0.5rem", fontSize: "0.85rem" }}>
-                Go to <a href="/tasks">Tasks</a> for details.
-              </p>
-            </>
-          )}
-
-          <h3 style={{ marginTop: "1rem" }}>My Standups Today</h3>
-          {standupsLoading ? (
-            <p>Loading standups...</p>
-          ) : standupsError ? (
-            <p style={{ color: "red" }}>{standupsError}</p>
-          ) : myTodayStandups.length === 0 ? (
-            <p style={{ fontSize: "0.9rem", opacity: 0.8 }}>
-              No standups recorded by you yet today.
-            </p>
-          ) : (
-            <ul style={{ listStyle: "none", padding: 0 }}>
-              {myTodayStandups.map((s) => (
-                <li
-                  key={s.id}
-                  style={{
-                    border: "1px solid #ddd",
-                    borderRadius: "4px",
-                    padding: "0.5rem",
-                    marginBottom: "0.5rem",
-                    fontSize: "0.9rem",
-                  }}
-                >
-                  {s.project_name && (
-                    <div style={{ fontSize: "0.85rem", opacity: 0.8 }}>
-                      Project: <strong>{s.project_name}</strong>
-                    </div>
-                  )}
-                  {s.today && (
-                    <p>
-                      <strong>Today:</strong> {s.today}
-                    </p>
-                  )}
-                  {s.blockers && (
-                    <p>
-                      <strong>Blockers:</strong> {s.blockers}
-                    </p>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-
-          {/* 🔹 Recent Tasks */}
-          <h3 style={{ marginTop: "1rem" }}>Recent Tasks</h3>
-          {tasksLoading ? (
-            <p style={{ fontSize: "0.9rem", opacity: 0.8 }}>
-              Loading tasks...
-            </p>
-          ) : totalMyTasks === 0 ? (
-            <p style={{ fontSize: "0.9rem", opacity: 0.8 }}>
-              No tasks to display yet.
-            </p>
-          ) : (
-            <ul
-              style={{
-                listStyle: "none",
-                padding: 0,
-                marginTop: "0.25rem",
-                fontSize: "0.9rem",
-              }}
-            >
-              {recentTasks.map((t) => (
-                <li
-                  key={t.id}
-                  style={{
-                    borderBottom: "1px dashed #ddd",
-                    paddingBottom: "0.25rem",
-                    marginBottom: "0.25rem",
-                  }}
-                >
-                  <div>
-                    <strong>{t.title}</strong>
-                    {t.project_name && (
-                      <span style={{ opacity: 0.7 }}>
-                        {" "}
-                        – {t.project_name}
-                      </span>
-                    )}
-                  </div>
-                  <div
+            ) : (
+              <ul style={{ listStyle: "none", paddingLeft: 0 }}>
+                {myTodayStandups.map((s) => (
+                  <li
+                    key={s.id}
                     style={{
-                      fontSize: "0.8rem",
-                      opacity: 0.8,
-                      marginTop: "0.1rem",
+                      borderBottom: "1px solid #eee",
+                      paddingBottom: "0.5rem",
+                      marginBottom: "0.5rem",
+                      fontSize: "0.9rem",
                     }}
                   >
-                    {formatTaskStatusLabel(t.status)} · {t.progress}% complete
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
+                    {s.project_name && (
+                      <div
+                        style={{
+                          fontSize: "0.8rem",
+                          opacity: 0.8,
+                          marginBottom: "0.1rem",
+                        }}
+                      >
+                        {s.project_name}
+                      </div>
+                    )}
+                    {s.today && (
+                      <div style={{ whiteSpace: "pre-wrap" }}>{s.today}</div>
+                    )}
+                    {s.blockers && (
+                      <div
+                        style={{
+                          marginTop: "0.25rem",
+                          fontSize: "0.85rem",
+                          color: "#b91c1c",
+                        }}
+                      >
+                        <strong>Blockers:</strong>{" "}
+                        <span style={{ whiteSpace: "pre-wrap" }}>
+                          {s.blockers}
+                        </span>
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
 
-          {/* 🔹 Quick Actions */}
+          {/* My tasks */}
+          <div style={{ marginTop: "0.75rem" }}>
+            <h3>My Top Active Tasks</h3>
+            {tasksLoading ? (
+              <p>Loading tasks…</p>
+            ) : tasksError ? (
+              <p style={{ color: "red" }}>{tasksError}</p>
+            ) : myTasks.length === 0 ? (
+              <p style={{ fontSize: "0.9rem", opacity: 0.8 }}>
+                You have no active tasks assigned to you.
+              </p>
+            ) : (
+              <>
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: "0.5rem",
+                    fontSize: "0.8rem",
+                    marginBottom: "0.5rem",
+                  }}
+                >
+                  <span>Todo: {taskCounts.todo}</span>
+                  <span>In Progress: {taskCounts.in_progress}</span>
+                  <span>Blocked: {taskCounts.blocked}</span>
+                  <span>Done: {taskCounts.done}</span>
+                </div>
+                <ul style={{ listStyle: "none", paddingLeft: 0 }}>
+                  {myTasks.slice(0, 5).map((task) => (
+                    <li
+                      key={task.id}
+                      style={{
+                        borderBottom: "1px solid #eee",
+                        paddingBottom: "0.5rem",
+                        marginBottom: "0.5rem",
+                        fontSize: "0.9rem",
+                      }}
+                    >
+                      <strong>{task.title}</strong>{" "}
+                      <span style={{ opacity: 0.75 }}>
+                        [{formatTaskStatusLabel(task.status)}]
+                      </span>
+                      {task.project_name && (
+                        <span style={{ marginLeft: "0.25rem", opacity: 0.7 }}>
+                          – {task.project_name}
+                        </span>
+                      )}
+                      <div
+                        style={{
+                          marginTop: "0.25rem",
+                          fontSize: "0.8rem",
+                          opacity: 0.8,
+                        }}
+                      >
+                        Progress: {task.progress}%
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </div>
+
+          {/* Quick Actions */}
           <h3 style={{ marginTop: "1rem" }}>Quick Actions</h3>
           <div
             style={{
@@ -520,7 +518,7 @@ const DashboardPage: React.FC = () => {
 
           <h3 style={{ marginTop: "1rem" }}>My Projects</h3>
           {projectsLoading ? (
-            <p>Loading projects...</p>
+            <p>Loading projects…</p>
           ) : projectsError ? (
             <p style={{ color: "red" }}>{projectsError}</p>
           ) : myProjects.length === 0 ? (
@@ -534,7 +532,7 @@ const DashboardPage: React.FC = () => {
                   key={p.id}
                   style={{
                     border: "1px solid #ddd",
-                    borderRadius: "4px",
+                    borderRadius: 4,
                     padding: "0.5rem",
                     marginBottom: "0.5rem",
                     fontSize: "0.9rem",
@@ -543,7 +541,9 @@ const DashboardPage: React.FC = () => {
                   <strong>{p.name}</strong>{" "}
                   <span style={{ opacity: 0.7 }}>[{p.status}]</span>
                   {p.description && (
-                    <div style={{ fontSize: "0.85rem", opacity: 0.8 }}>
+                    <div
+                      style={{ fontSize: "0.85rem", opacity: 0.8, marginTop: 2 }}
+                    >
                       {p.description}
                     </div>
                   )}
@@ -557,7 +557,7 @@ const DashboardPage: React.FC = () => {
         <div
           style={{
             border: "1px solid #ccc",
-            borderRadius: "6px",
+            borderRadius: 6,
             padding: "1rem",
           }}
         >
@@ -575,26 +575,26 @@ const DashboardPage: React.FC = () => {
           <div style={{ marginTop: "0.75rem" }}>
             <h3>Projects by Status</h3>
             {projectsLoading ? (
-              <p>Loading projects...</p>
+              <p>Loading projects…</p>
             ) : projects.length === 0 ? (
               <p style={{ fontSize: "0.9rem", opacity: 0.8 }}>
                 No projects in the system yet.
               </p>
             ) : (
               <ul style={{ fontSize: "0.9rem" }}>
-                <li>Planned: {projectCounts["planned"] || 0}</li>
-                <li>Active: {projectCounts["active"] || 0}</li>
-                <li>Blocked: {projectCounts["blocked"] || 0}</li>
-                <li>Done: {projectCounts["done"] || 0}</li>
+                <li>Planned: {projectCounts.planned || 0}</li>
+                <li>Active: {projectCounts.active || 0}</li>
+                <li>Blocked: {projectCounts.blocked || 0}</li>
+                <li>Done: {projectCounts.done || 0}</li>
               </ul>
             )}
           </div>
 
-          {/* 🔹 Recent Standups (last 3 days) */}
+          {/* Recent Standups */}
           <div style={{ marginTop: "0.75rem" }}>
             <h3>Recent Standups (last 3 days)</h3>
             {recentStandupsLoading ? (
-              <p>Loading recent standups...</p>
+              <p>Loading recent standups…</p>
             ) : recentStandupsError ? (
               <p style={{ color: "red" }}>{recentStandupsError}</p>
             ) : recentStandups.length === 0 ? (
@@ -635,10 +635,7 @@ const DashboardPage: React.FC = () => {
                       >
                         <strong>{s.name || "Unknown"}</strong>
                         {s.project_name && (
-                          <span style={{ opacity: 0.8 }}>
-                            {" "}
-                            – {s.project_name}
-                          </span>
+                          <span style={{ opacity: 0.8 }}> – {s.project_name}</span>
                         )}
                         {s.today && (
                           <div
@@ -648,7 +645,7 @@ const DashboardPage: React.FC = () => {
                             }}
                           >
                             {s.today.length > 120
-                              ? s.today.slice(0, 117) + "..."
+                              ? `${s.today.slice(0, 117)}...`
                               : s.today}
                           </div>
                         )}
@@ -667,22 +664,23 @@ const DashboardPage: React.FC = () => {
         style={{
           marginTop: "1.5rem",
           border: "1px solid #ccc",
-          borderRadius: "6px",
+          borderRadius: 6,
           padding: "1rem",
         }}
       >
         <h2>AI Unit SITREP (Today)</h2>
         <p style={{ fontSize: "0.9rem", opacity: 0.8 }}>
           This uses the same summary engine as the Standups page, aggregating all
-          standups recorded today. Great for copy-paste into higher HQ updates.
+          standups recorded today. Great for copy/paste into higher HQ updates.
         </p>
 
         <div style={{ marginTop: "0.5rem", marginBottom: "0.5rem" }}>
-          <button onClick={loadSummary} disabled={summaryLoading}>
-            {summaryLoading ? "Refreshing..." : "Refresh Summary"}
+          <button type="button" onClick={loadSummary} disabled={summaryLoading}>
+            {summaryLoading ? "Refreshing…" : "Refresh Summary"}
           </button>
           {summary && (
             <button
+              type="button"
               onClick={handleCopySummary}
               style={{ marginLeft: "0.5rem" }}
             >
@@ -701,7 +699,7 @@ const DashboardPage: React.FC = () => {
             style={{
               padding: "1rem",
               border: "1px solid #ccc",
-              borderRadius: "4px",
+              borderRadius: 4,
               marginTop: "0.5rem",
               whiteSpace: "pre-wrap",
             }}

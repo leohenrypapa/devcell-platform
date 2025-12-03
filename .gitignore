@@ -56,7 +56,6 @@ htmlcov/
 *.egg-info/
 
 # Ignore specific text and shell files
-devcell_feature_bundle.txt
 extract_feature_files.sh
 structure.sh
-structure.txt
+*.txt

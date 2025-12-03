@@ -1,3 +1,4 @@
+// filename: frontend/src/pages/LoginPage.tsx
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUser } from "../context/UserContext";
@@ -11,16 +12,20 @@ const LoginPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
     setLoading(true);
-    const ok = await login(username, password);
-    setLoading(false);
-    if (!ok) {
-      setError("Invalid username or password.");
-    } else {
+
+    try {
+      const ok = await login(username, password);
+      if (!ok) {
+        setError("Invalid username or password.");
+        return;
+      }
       navigate("/");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -36,7 +41,8 @@ const LoginPage: React.FC = () => {
     >
       <h1>Sign In</h1>
       <p style={{ fontSize: "0.9rem", opacity: 0.8 }}>
-        First user to register becomes admin (use backend /auth/register).
+        First user is created via <code>/auth/register</code> on the backend and
+        becomes admin.
       </p>
       <form onSubmit={handleSubmit}>
         <div style={{ marginBottom: "0.75rem" }}>
@@ -47,6 +53,8 @@ const LoginPage: React.FC = () => {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               style={{ width: "100%", marginTop: "0.25rem" }}
+              autoComplete="username"
+              required
             />
           </label>
         </div>
@@ -58,6 +66,8 @@ const LoginPage: React.FC = () => {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               style={{ width: "100%", marginTop: "0.25rem" }}
+              autoComplete="current-password"
+              required
             />
           </label>
         </div>

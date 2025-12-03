@@ -1,23 +1,10 @@
+// filename: frontend/src/components/StandupTaskConvertModal.tsx
 import React, { useEffect, useMemo, useState } from "react";
-import { useUser } from "../context/UserContext";
+
+import type { RecentStandupGroup, StandupEntry } from "../lib/standups"; // RecentStandupGroup imported if needed later
+import type { Project } from "../lib/tasks";
 import { useToast } from "../context/ToastContext";
-
-type StandupEntry = {
-  id: number;
-  name: string;
-  yesterday: string;
-  today: string;
-  blockers: string;
-  created_at: string;
-  project_id?: number | null;
-  project_name?: string | null;
-};
-
-type Project = {
-  id: number;
-  name: string;
-  status: "planned" | "active" | "blocked" | "done";
-};
+import { useUser } from "../context/UserContext";
 
 type StandupSection = "yesterday" | "today" | "blockers";
 
@@ -47,9 +34,13 @@ type ConvertDefaults = {
   dueDateMode: "none" | "today" | "tomorrow";
 };
 
+type ConvertResponseItem = {
+  id: number;
+};
+
 const DEFAULTS_KEY = "devcell-standup-convert-defaults";
 
-type Props = {
+type StandupTaskConvertModalProps = {
   standup: StandupEntry;
   projects: Project[];
   backendBase: string;
@@ -79,21 +70,24 @@ const loadDefaults = (): ConvertDefaults => {
   }
 };
 
-const saveDefaults = (defaults: ConvertDefaults | null) => {
-  if (!defaults) {
-    localStorage.removeItem(DEFAULTS_KEY);
-    return;
+const saveDefaults = (defaults: ConvertDefaults | null): void => {
+  try {
+    if (!defaults) {
+      localStorage.removeItem(DEFAULTS_KEY);
+      return;
+    }
+    localStorage.setItem(DEFAULTS_KEY, JSON.stringify(defaults));
+  } catch {
+    // ignore
   }
-  localStorage.setItem(DEFAULTS_KEY, JSON.stringify(defaults));
 };
 
-const splitIntoLines = (text: string): string[] => {
-  return text
+const splitIntoLines = (text: string): string[] =>
+  text
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter((line) => line.length > 0)
     .map((line) => line.replace(/^[-*]\s*/, ""));
-};
 
 const buildInitialLines = (standup: StandupEntry): ConvertLine[] => {
   const out: ConvertLine[] = [];
@@ -103,7 +97,7 @@ const buildInitialLines = (standup: StandupEntry): ConvertLine[] => {
     lines.forEach((line, idx) => {
       const id = `${section}-${idx}-${Math.random().toString(36).slice(2, 8)}`;
       const title =
-        line.length > 80 ? line.slice(0, 77).trimEnd() + "..." : line;
+        line.length > 80 ? `${line.slice(0, 77).trimEnd()}...` : line;
       out.push({
         id,
         section,
@@ -123,9 +117,7 @@ const buildInitialLines = (standup: StandupEntry): ConvertLine[] => {
   return out;
 };
 
-const computeDueDate = (
-  mode: ConvertDefaults["dueDateMode"]
-): string | null => {
+const computeDueDate = (mode: ConvertDefaults["dueDateMode"]): string | null => {
   if (mode === "none") return null;
   const base = new Date();
   if (mode === "tomorrow") {
@@ -137,7 +129,7 @@ const computeDueDate = (
   return `${year}-${month}-${day}`;
 };
 
-const StandupTaskConvertModal: React.FC<Props> = ({
+const StandupTaskConvertModal: React.FC<StandupTaskConvertModalProps> = ({
   standup,
   projects,
   backendBase,
@@ -148,19 +140,18 @@ const StandupTaskConvertModal: React.FC<Props> = ({
   const { showToast } = useToast();
 
   const [lines, setLines] = useState<ConvertLine[]>(() =>
-    buildInitialLines(standup)
+    buildInitialLines(standup),
   );
-  const initialDefaults = useMemo(() => loadDefaults(), []);
+  const initialDefaults = useMemo<ConvertDefaults>(() => loadDefaults(), []);
   const [projectId, setProjectId] = useState<number | null>(
-    initialDefaults.projectId ?? standup.project_id ?? null
+    initialDefaults.projectId ?? standup.project_id ?? null,
   );
   const [dueDateMode, setDueDateMode] = useState<ConvertDefaults["dueDateMode"]>(
-    initialDefaults.dueDateMode
+    initialDefaults.dueDateMode,
   );
   const [rememberDefaults, setRememberDefaults] = useState(
-    initialDefaults.projectId !== null || initialDefaults.dueDateMode !== "none"
+    initialDefaults.projectId !== null || initialDefaults.dueDateMode !== "none",
   );
-
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -173,13 +164,13 @@ const StandupTaskConvertModal: React.FC<Props> = ({
 
   const handleToggleLine = (id: string) => {
     setLines((prev) =>
-      prev.map((l) => (l.id === id ? { ...l, create: !l.create } : l))
+      prev.map((l) => (l.id === id ? { ...l, create: !l.create } : l)),
     );
   };
 
   const handleTitleChange = (id: string, value: string) => {
     setLines((prev) =>
-      prev.map((l) => (l.id === id ? { ...l, title: value } : l))
+      prev.map((l) => (l.id === id ? { ...l, title: value } : l)),
     );
   };
 
@@ -191,19 +182,19 @@ const StandupTaskConvertModal: React.FC<Props> = ({
               ...l,
               projectIdOverride: value === "" ? null : Number(value),
             }
-          : l
-      )
+          : l,
+      ),
     );
   };
 
   const handleDueOverrideChange = (
     id: string,
-    value: "inherit" | "none" | "today" | "tomorrow"
+    value: "inherit" | "none" | "today" | "tomorrow",
   ) => {
     setLines((prev) =>
       prev.map((l) =>
-        l.id === id ? { ...l, dueDateModeOverride: value } : l
-      )
+        l.id === id ? { ...l, dueDateModeOverride: value } : l,
+      ),
     );
   };
 
@@ -212,7 +203,7 @@ const StandupTaskConvertModal: React.FC<Props> = ({
       const selectable = prev.filter((l) => l.text.trim().length > 0);
       const allSelected = selectable.every((l) => l.create);
       return prev.map((l) =>
-        l.text.trim().length === 0 ? l : { ...l, create: !allSelected }
+        l.text.trim().length === 0 ? l : { ...l, create: !allSelected },
       );
     });
   };
@@ -236,7 +227,7 @@ const StandupTaskConvertModal: React.FC<Props> = ({
           rawTitle.length > 0
             ? rawTitle
             : l.text.length > 80
-            ? l.text.slice(0, 77).trimEnd() + "..."
+            ? `${l.text.slice(0, 77).trimEnd()}...`
             : l.text;
 
         const status = l.section === "blockers" ? "blocked" : "todo";
@@ -301,11 +292,11 @@ const StandupTaskConvertModal: React.FC<Props> = ({
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({ items }),
-        }
+        },
       );
 
       if (!res.ok) {
-        const bodyText = await res.text();
+        const bodyText = await res.text().catch(() => "");
         console.error("Conversion failed:", res.status, bodyText);
         showToast("Failed to convert standup into tasks.", "error");
         setSubmitting(false);
@@ -313,10 +304,12 @@ const StandupTaskConvertModal: React.FC<Props> = ({
       }
 
       const data = await res.json();
-      const itemsResp = Array.isArray(data.items) ? data.items : [];
+      const itemsResp = Array.isArray(data.items)
+        ? (data.items as ConvertResponseItem[])
+        : [];
       const taskIds = itemsResp
-        .map((t: any) => (t && typeof t.id === "number" ? t.id : null))
-        .filter((id: number | null): id is number => id !== null);
+        .map((t) => t?.id)
+        .filter((id): id is number => typeof id === "number");
 
       onConverted({ count: taskIds.length, taskIds });
     } catch (err) {
@@ -330,12 +323,9 @@ const StandupTaskConvertModal: React.FC<Props> = ({
   // Keyboard shortcuts: Esc (close), Enter (submit), Ctrl/Cmd+A (toggle select all)
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      // Only if modal is top-level focus; we treat presence of this component as "active"
-      // Ignore if event originated outside document body (rare)
       const target = e.target as HTMLElement | null;
       const tag = target?.tagName;
 
-      // Esc -> close
       if (e.key === "Escape") {
         e.preventDefault();
         if (!submitting) {
@@ -344,14 +334,12 @@ const StandupTaskConvertModal: React.FC<Props> = ({
         return;
       }
 
-      // Ctrl/Cmd + A -> toggle select all lines (instead of browser select-all)
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a") {
         e.preventDefault();
         toggleSelectAll();
         return;
       }
 
-      // Enter -> submit (but NOT inside textarea)
       if (
         e.key === "Enter" &&
         !e.shiftKey &&
@@ -373,10 +361,13 @@ const StandupTaskConvertModal: React.FC<Props> = ({
     return () => {
       window.removeEventListener("keydown", handler);
     };
-  }, [submitting, onClose, lines, dueDateMode, projectId]); // deps just to keep handler up to date
+  }, [submitting, onClose]); // handler only depends on these
 
   return (
     <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="standup-convert-title"
       style={{
         position: "fixed",
         inset: 0,
@@ -400,13 +391,15 @@ const StandupTaskConvertModal: React.FC<Props> = ({
           fontSize: "0.9rem",
         }}
       >
-        <h2 style={{ marginTop: 0 }}>Convert Standup to Tasks</h2>
+        <h2 id="standup-convert-title" style={{ marginTop: 0 }}>
+          Convert Standup to Tasks
+        </h2>
         <p style={{ opacity: 0.8 }}>
-          Standup from <strong>{standup.name}</strong>. Select which lines to
-          turn into tasks, edit their titles, and apply shared or per-line
-          settings.
+          Standup from <strong>{standup.name}</strong>. Select which lines to turn
+          into tasks, edit their titles, and apply shared or per-line settings.
         </p>
 
+        {/* Default settings */}
         <div
           style={{
             marginTop: "0.75rem",
@@ -458,7 +451,7 @@ const StandupTaskConvertModal: React.FC<Props> = ({
                 value={dueDateMode}
                 onChange={(e) =>
                   setDueDateMode(
-                    e.target.value as ConvertDefaults["dueDateMode"]
+                    e.target.value as ConvertDefaults["dueDateMode"],
                   )
                 }
               >
@@ -480,6 +473,7 @@ const StandupTaskConvertModal: React.FC<Props> = ({
           </div>
         </div>
 
+        {/* Lines list */}
         <div
           style={{
             borderRadius: "4px",
@@ -502,10 +496,11 @@ const StandupTaskConvertModal: React.FC<Props> = ({
             <div>Section</div>
             <div>Title, Line &amp; Overrides</div>
           </div>
+
           {lines.length === 0 ? (
             <div style={{ padding: "0.75rem" }}>
-              No lines detected from this standup. Add text to Yesterday / Today
-              / Blockers first.
+              No lines detected from this standup. Add text to Yesterday / Today /
+              Blockers first.
             </div>
           ) : (
             lines.map((line) => (
@@ -538,9 +533,7 @@ const StandupTaskConvertModal: React.FC<Props> = ({
                   <input
                     type="text"
                     value={line.title}
-                    onChange={(e) =>
-                      handleTitleChange(line.id, e.target.value)
-                    }
+                    onChange={(e) => handleTitleChange(line.id, e.target.value)}
                     placeholder="Task title"
                     style={{
                       width: "100%",
@@ -595,7 +588,7 @@ const StandupTaskConvertModal: React.FC<Props> = ({
                               | "inherit"
                               | "none"
                               | "today"
-                              | "tomorrow"
+                              | "tomorrow",
                           )
                         }
                       >
@@ -612,6 +605,7 @@ const StandupTaskConvertModal: React.FC<Props> = ({
           )}
         </div>
 
+        {/* Footer */}
         <div
           style={{
             marginTop: "1rem",

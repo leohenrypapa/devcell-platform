@@ -1,4 +1,10 @@
-import React, { createContext, useContext, useState, useCallback } from "react";
+// filename: frontend/src/context/ToastContext.tsx
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useState,
+} from "react";
 
 type ToastType = "info" | "success" | "error";
 
@@ -29,13 +35,12 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({
     (message: string, type: ToastType = "info") => {
       const id = nextId++;
       setToasts((prev) => [...prev, { id, message, type }]);
-      // Auto-dismiss after 4 seconds
-      setTimeout(() => removeToast(id), 4000);
+      window.setTimeout(() => removeToast(id), 4000);
     },
-    [removeToast]
+    [removeToast],
   );
 
-  const getBackground = (type: ToastType) => {
+  const getBackground = (type: ToastType): string => {
     switch (type) {
       case "success":
         return "#16a34a"; // green
@@ -66,12 +71,14 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({
         {toasts.map((t) => (
           <div
             key={t.id}
+            role="status"
+            aria-live="polite"
             style={{
               minWidth: "220px",
               maxWidth: "360px",
               padding: "0.5rem 0.75rem",
               borderRadius: "6px",
-              color: "#fff",
+              color: "#ffffff",
               backgroundColor: getBackground(t.type),
               boxShadow: "0 2px 8px rgba(0,0,0,0.25)",
               fontSize: "0.85rem",

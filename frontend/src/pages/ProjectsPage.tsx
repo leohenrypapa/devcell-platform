@@ -1,12 +1,15 @@
+// filename: frontend/src/pages/ProjectsPage.tsx
 import React, { useEffect, useState } from "react";
 import { useUser } from "../context/UserContext";
+
+type ProjectStatus = "planned" | "active" | "blocked" | "done";
 
 type Project = {
   id: number;
   name: string;
   description: string;
   owner: string;
-  status: "planned" | "active" | "blocked" | "done";
+  status: ProjectStatus;
   created_at: string;
 };
 
@@ -21,10 +24,14 @@ type ProjectSummaryResponse = {
   count: number;
 };
 
+const backendBase =
+  (import.meta as any).env.VITE_BACKEND_BASE_URL || "http://localhost:9000";
+
 const ProjectsPage: React.FC = () => {
   const { user, token, isAuthenticated } = useUser();
   const loggedInOwner = user?.username ?? "";
   const isAdmin = user?.role === "admin";
+
   const [editingProjectId, setEditingProjectId] = useState<number | null>(null);
   const [showMineOnly, setShowMineOnly] = useState(false);
 
@@ -34,9 +41,7 @@ const ProjectsPage: React.FC = () => {
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [status, setStatus] = useState<"planned" | "active" | "blocked" | "done">(
-    "planned"
-  );
+  const [status, setStatus] = useState<ProjectStatus>("planned");
   const [creating, setCreating] = useState(false);
 
   const [summaryLoading, setSummaryLoading] = useState(false);
@@ -45,17 +50,18 @@ const ProjectsPage: React.FC = () => {
     null
   );
 
-  const backendBase = (import.meta as any).env.VITE_BACKEND_BASE_URL || "http://localhost:9000";
-
   const loadProjects = async () => {
     setLoading(true);
     setError(null);
+
     try {
       const res = await fetch(`${backendBase}/api/projects`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
       const data: ProjectListResponse = await res.json();
       setProjects(data.items || []);
-    } catch (err) {
+    } catch (err: unknown) {
       console.error(err);
       setError("Failed to load projects.");
     } finally {
@@ -64,11 +70,12 @@ const ProjectsPage: React.FC = () => {
   };
 
   useEffect(() => {
-    loadProjects();
+    void loadProjects();
   }, []);
 
   const handleSaveProject = async () => {
     if (!isAuthenticated || !token) {
+      // Keeping alert to match original behavior.
       alert("You must be signed in to create a project.");
       return;
     }
@@ -84,6 +91,7 @@ const ProjectsPage: React.FC = () => {
     try {
       let url = `${backendBase}/api/projects`;
       let method: "POST" | "PUT" = "POST";
+
       if (editingProjectId !== null) {
         url = `${backendBase}/api/projects/${editingProjectId}`;
         method = "PUT";
@@ -103,7 +111,9 @@ const ProjectsPage: React.FC = () => {
         }),
       });
 
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
 
       await loadProjects();
 
@@ -111,7 +121,7 @@ const ProjectsPage: React.FC = () => {
       setDescription("");
       setStatus("planned");
       setEditingProjectId(null);
-    } catch (err) {
+    } catch (err: unknown) {
       console.error(err);
       setError("Failed to create project.");
     } finally {
@@ -119,151 +129,92 @@ const ProjectsPage: React.FC = () => {
     }
   };
 
-  const handleEditProject = (p: Project) => {
-    setEditingProjectId(p.id);
-    setName(p.name);
-    setDescription(p.description || "");
-    setStatus(p.status);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+  const handleEdit = (project: Project) => {
+    setEditingProjectId(project.id);
+    setName(project.name);
+    setDescription(project.description);
+    setStatus(project.status);
   };
 
-  const handleProjectSummary = async (projectId: number) => {
+  const handleCancelEdit = () => {
+    setEditingProjectId(null);
+    setName("");
+    setDescription("");
+    setStatus("planned");
+  };
+
+  const handleSummarize = async (projectId: number) => {
     setSummaryLoading(true);
     setSummaryError(null);
     setSummaryData(null);
 
     try {
-      const res = await fetch(`${backendBase}/api/projects/${projectId}/summary`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const res = await fetch(
+        `${backendBase}/api/projects/${projectId}/summary`,
+        {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        }
+      );
+
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+
       const data: ProjectSummaryResponse = await res.json();
       setSummaryData(data);
-    } catch (err) {
+    } catch (err: unknown) {
       console.error(err);
-      setSummaryError("Failed to generate project summary.");
+      setSummaryError("Failed to load project summary.");
     } finally {
       setSummaryLoading(false);
     }
   };
 
-  const handleCopyProjectSummary = () => {
-    if (!summaryData) return;
-
-    const header = `Project SITREP: ${summaryData.project_name}\nBased on ${summaryData.count} standup entries today.\n\n`;
-    const text = header + summaryData.summary;
-
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).catch((err) => {
-        console.error("Failed to copy:", err);
-        alert("Copy failed. You can still manually select and copy the text.");
-      });
-    } else {
-      alert("Clipboard API not available. Please select and copy manually.");
-    }
-  };
-
-  const handleDeleteProject = async (id: number) => {
-    if (!isAuthenticated || !token) {
-      alert("You must be signed in to delete a project.");
-      return;
-    }
-
-    const confirmed = window.confirm("Delete this project?");
-    if (!confirmed) return;
-
-    try {
-      const res = await fetch(`${backendBase}/api/projects/${id}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!res.ok) {
-        console.error("Delete project failed:", res.status);
-        alert("Failed to delete project.");
-        return;
-      }
-
-      await loadProjects();
-    } catch (err) {
-      console.error(err);
-      alert("Failed to delete project.");
-    }
-  };
-
-  const statusLabel = (s: Project["status"]) => {
-    switch (s) {
-      case "planned":
-        return "Planned";
-      case "active":
-        return "Active";
-      case "blocked":
-        return "Blocked";
-      case "done":
-        return "Done";
-      default:
-        return s;
-    }
-  };
-
-  const displayProjects =
-    showMineOnly && loggedInOwner
-      ? projects.filter((p) => p.owner === loggedInOwner)
-      : projects;
+  const filteredProjects = showMineOnly
+    ? projects.filter((p) => p.owner === loggedInOwner)
+    : projects;
 
   return (
     <div>
       <h1>Projects</h1>
-      <p>Track your dev cell projects, owners, statuses, and AI summaries.</p>
+      <p style={{ fontSize: "0.9rem", opacity: 0.8 }}>
+        Track team projects and get AI-generated summaries from recent standups
+        and tasks.
+      </p>
 
-      <div
-        style={{
-          marginTop: "1rem",
-          padding: "1rem",
-          border: "1px solid #ccc",
-          borderRadius: "4px",
-          maxWidth: "600px",
-        }}
-      >
+      {/* Create / Edit project */}
+      <section style={{ marginTop: "1.5rem" }}>
         <h2>{editingProjectId ? "Edit Project" : "Create Project"}</h2>
-        <p style={{ fontSize: "0.9rem", opacity: 0.7 }}>
-          Owner will be set to your account:{" "}
-          <strong>{loggedInOwner || "Unknown user"}</strong>.
-        </p>
-        <div style={{ marginBottom: "0.5rem" }}>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.5rem",
+            maxWidth: 480,
+          }}
+        >
           <label>
-            Name (required)
+            Name
             <input
-              type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
               style={{ width: "100%", marginTop: "0.25rem" }}
-              placeholder="e.g., Dev Portal, LLM Integration"
             />
           </label>
-        </div>
-        <div style={{ marginBottom: "0.5rem" }}>
           <label>
             Description
             <textarea
-              rows={2}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
+              rows={3}
               style={{ width: "100%", marginTop: "0.25rem" }}
-              placeholder="Short summary of the project."
             />
           </label>
-        </div>
-
-        <div style={{ marginBottom: "0.5rem" }}>
           <label>
             Status
             <select
               value={status}
-              onChange={(e) =>
-                setStatus(e.target.value as Project["status"])
-              }
-              style={{ width: "100%", marginTop: "0.25rem" }}
+              onChange={(e) => setStatus(e.target.value as ProjectStatus)}
             >
               <option value="planned">Planned</option>
               <option value="active">Active</option>
@@ -271,231 +222,115 @@ const ProjectsPage: React.FC = () => {
               <option value="done">Done</option>
             </select>
           </label>
-        </div>
-        <button onClick={handleSaveProject} disabled={creating}>
-          {creating
-            ? editingProjectId
-              ? "Saving..."
-              : "Creating..."
-            : editingProjectId
-            ? "Save Changes"
-            : "Create Project"}
-        </button>
-        {editingProjectId !== null && (
-          <button
-            type="button"
-            onClick={() => {
-              setEditingProjectId(null);
-              setName("");
-              setDescription("");
-              setStatus("planned");
-            }}
-            style={{ marginLeft: "0.5rem" }}
-          >
-            Cancel Edit
-          </button>
-        )}
-        {error && (
-          <div style={{ marginTop: "0.5rem", color: "red" }}>{error}</div>
-        )}
-      </div>
-
-      <div style={{ marginTop: "2rem" }}>
-        <h2>All Projects</h2>
-
-        <div style={{ marginBottom: "0.5rem", fontSize: "0.9rem" }}>
-          <label>
-            <input
-              type="checkbox"
-              checked={showMineOnly}
-              onChange={(e) => setShowMineOnly(e.target.checked)}
-              style={{ marginRight: "0.25rem" }}
-            />
-            Show only my projects ({loggedInOwner || "not signed in"})
-          </label>
-        </div>
-
-        {loading ? (
-          <p>Loading...</p>
-        ) : displayProjects.length === 0 ? (
-          <p>No projects yet. Create one above.</p>
-        ) : (
-          <table
-            style={{
-              width: "100%",
-              borderCollapse: "collapse",
-              maxWidth: "900px",
-            }}
-          >
-            <thead>
-              <tr>
-                <th
-                  style={{
-                    borderBottom: "1px solid #ddd",
-                    textAlign: "left",
-                    padding: "0.5rem",
-                  }}
-                >
-                  Name
-                </th>
-                <th
-                  style={{
-                    borderBottom: "1px solid #ddd",
-                    textAlign: "left",
-                    padding: "0.5rem",
-                  }}
-                >
-                  Owner
-                </th>
-                <th
-                  style={{
-                    borderBottom: "1px solid #ddd",
-                    textAlign: "left",
-                    padding: "0.5rem",
-                  }}
-                >
-                  Status
-                </th>
-                <th
-                  style={{
-                    borderBottom: "1px solid #ddd",
-                    textAlign: "left",
-                    padding: "0.5rem",
-                  }}
-                >
-                  Created
-                </th>
-                <th
-                  style={{
-                    borderBottom: "1px solid #ddd",
-                    textAlign: "left",
-                    padding: "0.5rem",
-                  }}
-                >
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {displayProjects.map((p) => (
-                <tr key={p.id}>
-                  <td
-                    style={{
-                      borderBottom: "1px solid #eee",
-                      padding: "0.5rem",
-                    }}
-                  >
-                    <strong>{p.name}</strong>
-                    {p.description && (
-                      <div style={{ fontSize: "0.9rem", opacity: 0.8 }}>
-                        {p.description}
-                      </div>
-                    )}
-                  </td>
-                  <td
-                    style={{
-                      borderBottom: "1px solid #eee",
-                      padding: "0.5rem",
-                    }}
-                  >
-                    {p.owner || "-"}
-                  </td>
-                  <td
-                    style={{
-                      borderBottom: "1px solid #eee",
-                      padding: "0.5rem",
-                    }}
-                  >
-                    {statusLabel(p.status)}
-                  </td>
-                  <td
-                    style={{
-                      borderBottom: "1px solid #eee",
-                      padding: "0.5rem",
-                    }}
-                  >
-                    {new Date(p.created_at).toLocaleString()}
-                  </td>
-                  <td
-                    style={{
-                      borderBottom: "1px solid #eee",
-                      padding: "0.5rem",
-                    }}
-                  >
-                    <button
-                      onClick={() => handleProjectSummary(p.id)}
-                      disabled={summaryLoading}
-                    >
-                      {summaryLoading &&
-                      summaryData &&
-                      summaryData.project_id === p.id
-                        ? "Summarizing..."
-                        : "AI Summary"}
-                    </button>
-                    {(isAdmin || p.owner === loggedInOwner) && (
-                      <>
-                        <button
-                          onClick={() => handleEditProject(p)}
-                          style={{ marginLeft: "0.5rem", fontSize: "0.8rem" }}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDeleteProject(p.id)}
-                          style={{ marginLeft: "0.5rem", fontSize: "0.8rem" }}
-                        >
-                          Delete
-                        </button>
-                      </>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-
-      <div style={{ marginTop: "2rem" }}>
-        <h2>Project AI Summary</h2>
-
-        {summaryData && (
-          <button
-            onClick={handleCopyProjectSummary}
-            style={{ marginBottom: "0.5rem" }}
-          >
-            Copy Summary
-          </button>
-        )}
-
-        {summaryError && (
-          <div style={{ marginBottom: "0.5rem", color: "red" }}>
-            {summaryError}
+          <div style={{ marginTop: "0.5rem" }}>
+            <button onClick={handleSaveProject} disabled={creating}>
+              {creating
+                ? editingProjectId
+                  ? "Saving..."
+                  : "Creating..."
+                : editingProjectId
+                ? "Save Changes"
+                : "Create Project"}
+            </button>
+            {editingProjectId !== null && (
+              <button
+                type="button"
+                onClick={handleCancelEdit}
+                style={{ marginLeft: "0.5rem" }}
+              >
+                Cancel
+              </button>
+            )}
           </div>
+        </div>
+      </section>
+
+      {error && (
+        <p style={{ color: "red", marginTop: "0.5rem" }}>{error}</p>
+      )}
+
+      {/* Projects list */}
+      <section style={{ marginTop: "2rem" }}>
+        <h2>All Projects</h2>
+        <label style={{ display: "block", marginBottom: "0.5rem" }}>
+          <input
+            type="checkbox"
+            checked={showMineOnly}
+            onChange={(e) => setShowMineOnly(e.target.checked)}
+          />{" "}
+          Show only my projects
+        </label>
+
+        {loading && <p>Loading projects...</p>}
+        {!loading && filteredProjects.length === 0 && (
+          <p style={{ fontSize: "0.9rem", opacity: 0.8 }}>
+            No projects found. Create one above.
+          </p>
         )}
 
-        {summaryData ? (
+        {!loading && filteredProjects.length > 0 && (
+          <ul>
+            {filteredProjects.map((p) => (
+              <li
+                key={p.id}
+                style={{
+                  marginBottom: "0.75rem",
+                  borderBottom: "1px solid #eee",
+                  paddingBottom: "0.5rem",
+                }}
+              >
+                <div>
+                  <strong>{p.name}</strong>{" "}
+                  <span style={{ fontSize: "0.8rem", opacity: 0.7 }}>
+                    ({p.status}) – owner: {p.owner}
+                  </span>
+                </div>
+                {p.description && (
+                  <div style={{ fontSize: "0.9rem", marginTop: "0.15rem" }}>
+                    {p.description}
+                  </div>
+                )}
+                <div style={{ marginTop: "0.25rem" }}>
+                  <button type="button" onClick={() => handleEdit(p)}>
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSummarize(p.id)}
+                    style={{ marginLeft: "0.5rem" }}
+                  >
+                    Summarize
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {/* Summary */}
+      <section style={{ marginTop: "2rem" }}>
+        <h2>Project Summary</h2>
+        {summaryLoading && <p>Loading summary...</p>}
+        {summaryError && (
+          <p style={{ color: "red", marginTop: "0.5rem" }}>{summaryError}</p>
+        )}
+        {summaryData && (
           <div
             style={{
-              padding: "1rem",
               border: "1px solid #ccc",
-              borderRadius: "6px",
-              maxWidth: "900px",
+              borderRadius: "4px",
+              padding: "1rem",
               whiteSpace: "pre-wrap",
             }}
           >
-            <p style={{ fontSize: "0.9rem", opacity: 0.8 }}>
-              Project: <strong>{summaryData.project_name}</strong> – based on{" "}
-              {summaryData.count} standup entries today.
-            </p>
+            <h3>
+              {summaryData.project_name} (based on {summaryData.count} entries)
+            </h3>
             <p>{summaryData.summary}</p>
           </div>
-        ) : (
-          <p style={{ fontSize: "0.9rem", opacity: 0.8 }}>
-            Click "AI Summary" on a project to see a project-specific summary here.
-          </p>
         )}
-      </div>
+      </section>
     </div>
   );
 };

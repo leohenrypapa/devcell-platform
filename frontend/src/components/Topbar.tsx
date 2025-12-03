@@ -1,7 +1,9 @@
+// filename: frontend/src/components/Topbar.tsx
 import React from "react";
-import { useUser } from "../context/UserContext";
 import { useNavigate } from "react-router-dom";
+
 import { useTheme } from "../context/ThemeContext";
+import { useUser } from "../context/UserContext";
 
 const Topbar: React.FC = () => {
   const { user, isAuthenticated, logout } = useUser();
@@ -18,7 +20,7 @@ const Topbar: React.FC = () => {
     <header
       style={{
         height: "50px",
-        borderBottom: `1px solid ${isDark ? "#374151" : "#ddd"}`,
+        borderBottom: `1px solid ${isDark ? "#374151" : "#dddddd"}`,
         backgroundColor: isDark ? "#020617" : "#ffffff",
         display: "flex",
         alignItems: "center",
@@ -54,8 +56,9 @@ const Topbar: React.FC = () => {
         {isAuthenticated && user ? (
           <>
             Signed in as <strong>{user.username}</strong>
-            {user.role ? ` (${user.role})` : ""}{" "}
+            {user.role ? ` (${user.role})` : ""}
             <button
+              type="button"
               onClick={handleLogout}
               style={{ marginLeft: "0.75rem", fontSize: "0.8rem" }}
             >
@@ -63,12 +66,20 @@ const Topbar: React.FC = () => {
             </button>
           </>
         ) : (
-          <span
-            style={{ cursor: "pointer", textDecoration: "underline" }}
+          <button
+            type="button"
             onClick={() => navigate("/login")}
+            style={{
+              cursor: "pointer",
+              textDecoration: "underline",
+              border: "none",
+              background: "none",
+              fontSize: "0.9rem",
+              padding: 0,
+            }}
           >
             Not signed in
-          </span>
+          </button>
         )}
       </div>
     </header>

@@ -1,23 +1,22 @@
+// filename: frontend/src/pages/CodeReviewPage.tsx
 import React, { useState } from "react";
+import { useUser } from "../context/UserContext";
 
-type CodeReviewResponse = {
-  review: string;
-};
+const backendBase =
+  (import.meta as any).env.VITE_BACKEND_BASE_URL || "http://localhost:9000";
 
 const CodeReviewPage: React.FC = () => {
-  const [code, setCode] = useState("");
-  const [description, setDescription] = useState("");
-  const [language, setLanguage] = useState("");
-  const [focus, setFocus] = useState("general");
-  const [loading, setLoading] = useState(false);
-  const [review, setReview] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { token } = useUser();
 
-  const backendBase = (import.meta as any).env.VITE_BACKEND_BASE_URL || "http://localhost:9000";
+  const [code, setCode] = useState("");
+  const [extraContext, setExtraContext] = useState("");
+  const [review, setReview] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleReview = async () => {
     if (!code.trim()) {
-      alert("Please paste some code or a diff to review.");
+      setError("Please paste some code to review.");
       return;
     }
 
@@ -28,126 +27,95 @@ const CodeReviewPage: React.FC = () => {
     try {
       const res = await fetch(`${backendBase}/api/review`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
           code,
-          description: description || undefined,
-          language: language || undefined,
-          focus: focus || undefined,
+          extra_context: extraContext || undefined,
         }),
       });
 
       if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
+        const text = await res.text();
+        throw new Error(text || `HTTP ${res.status}`);
       }
 
-      const data: CodeReviewResponse = await res.json();
+      const data: { review: string } = await res.json();
       setReview(data.review);
-    } catch (err) {
+    } catch (err: unknown) {
       console.error(err);
-      setError("Failed to get code review. Check if backend/LLM is running.");
+      setError("Failed to run code review.");
     } finally {
       setLoading(false);
     }
   };
 
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    void handleReview();
+  };
+
   return (
     <div>
-      <h1>Code Review Helper</h1>
-      <p>
-        Paste code or a diff, add optional context, and let the LLM give you
-        review feedback.
+      <h1>AI Code Review</h1>
+      <p style={{ fontSize: "0.9rem", opacity: 0.8 }}>
+        Paste a code snippet and let the backend LLM provide a structured review.
       </p>
 
-      <div
-        style={{
-          marginTop: "1rem",
-          padding: "1rem",
-          border: "1px solid #ccc",
-          borderRadius: "4px",
-        }}
-      >
-        <div style={{ marginBottom: "0.5rem" }}>
-          <label>
-            Language (optional)
-            <input
-              type="text"
-              value={language}
-              onChange={(e) => setLanguage(e.target.value)}
-              style={{ width: "100%", marginTop: "0.25rem" }}
-              placeholder="e.g., python, javascript, diff, etc."
-            />
-          </label>
-        </div>
+      <form onSubmit={handleSubmit} style={{ marginTop: "1rem" }}>
+        <label style={{ display: "block", marginBottom: "0.75rem" }}>
+          Code
+          <textarea
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            rows={14}
+            style={{
+              display: "block",
+              width: "100%",
+              marginTop: "0.25rem",
+              fontFamily: "monospace",
+            }}
+          />
+        </label>
 
-        <div style={{ marginBottom: "0.5rem" }}>
-          <label>
-            Review focus
-            <select
-              value={focus}
-              onChange={(e) => setFocus(e.target.value)}
-              style={{ width: "100%", marginTop: "0.25rem" }}
-            >
-              <option value="general">General</option>
-              <option value="correctness">Correctness</option>
-              <option value="security">Security</option>
-              <option value="performance">Performance</option>
-              <option value="readability">Readability</option>
-              <option value="tests">Tests</option>
-            </select>
-          </label>
-        </div>
+        <label style={{ display: "block", marginBottom: "0.75rem" }}>
+          Extra Context (optional)
+          <textarea
+            value={extraContext}
+            onChange={(e) => setExtraContext(e.target.value)}
+            rows={3}
+            style={{
+              display: "block",
+              width: "100%",
+              marginTop: "0.25rem",
+            }}
+          />
+        </label>
 
-        <div style={{ marginBottom: "0.5rem" }}>
-          <label>
-            Context (optional)
-            <textarea
-              rows={2}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              style={{ width: "100%", marginTop: "0.25rem" }}
-              placeholder="Describe what this code is supposed to do, or where it lives (e.g., API handler, service, etc.)."
-            />
-          </label>
-        </div>
+        {error && (
+          <p style={{ color: "red", marginBottom: "0.75rem" }}>{error}</p>
+        )}
 
-        <div style={{ marginBottom: "0.5rem" }}>
-          <label>
-            Code / Diff (required)
-            <textarea
-              rows={12}
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              style={{ width: "100%", marginTop: "0.25rem", fontFamily: "monospace" }}
-              placeholder={`Example:\n\nfunction add(a, b) {\n  return a + b;\n}`}
-            />
-          </label>
-        </div>
-
-        <button onClick={handleReview} disabled={loading}>
-          {loading ? "Reviewing..." : "Run Code Review"}
+        <button type="submit" disabled={loading}>
+          {loading ? "Running review..." : "Run Code Review"}
         </button>
-      </div>
-
-      {error && (
-        <div style={{ marginTop: "1rem", color: "red" }}>
-          {error}
-        </div>
-      )}
+      </form>
 
       {review && (
-        <div
+        <section
           style={{
-            marginTop: "1rem",
-            padding: "1rem",
+            marginTop: "1.5rem",
             border: "1px solid #ccc",
             borderRadius: "4px",
+            padding: "1rem",
             whiteSpace: "pre-wrap",
           }}
         >
-          <h2>Review Feedback</h2>
+          <h2>Review Result</h2>
           <p>{review}</p>
-        </div>
+        </section>
       )}
     </div>
   );

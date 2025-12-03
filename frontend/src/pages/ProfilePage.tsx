@@ -1,3 +1,4 @@
+// filename: frontend/src/pages/ProfilePage.tsx
 import React, { useEffect, useState } from "react";
 import { useUser } from "../context/UserContext";
 
@@ -5,7 +6,9 @@ const backendBase =
   (import.meta as any).env.VITE_BACKEND_BASE_URL || "http://localhost:9000";
 
 const ProfilePage: React.FC = () => {
+  // NOTE: setUser isn't declared on UserContextValue yet, so we keep `as any`.
   const { user, token, setUser } = useUser() as any;
+
   const [form, setForm] = useState({
     display_name: "",
     job_title: "",
@@ -13,6 +16,7 @@ const ProfilePage: React.FC = () => {
     rank: "",
     skills: "",
   });
+
   const [pwForm, setPwForm] = useState({
     old_password: "",
     new_password: "",
@@ -46,7 +50,7 @@ const ProfilePage: React.FC = () => {
     setPwForm((f) => ({ ...f, [name]: value }));
   };
 
-  const saveProfile = async (e: React.FormEvent) => {
+  const saveProfile = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setMsg(null);
     setErr(null);
@@ -62,19 +66,21 @@ const ProfilePage: React.FC = () => {
       });
 
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
+        const data = await res.json().catch(() => ({} as { detail?: string }));
         throw new Error(data.detail || "Failed to update profile.");
       }
 
       const updatedUser = await res.json();
       setUser(updatedUser);
       setMsg("Profile updated.");
-    } catch (error: any) {
-      setErr(error.message || "Failed to update profile.");
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : "Failed to update profile.";
+      setErr(message);
     }
   };
 
-  const changePassword = async (e: React.FormEvent) => {
+  const changePassword = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setMsg(null);
     setErr(null);
@@ -98,14 +104,16 @@ const ProfilePage: React.FC = () => {
       });
 
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
+        const data = await res.json().catch(() => ({} as { detail?: string }));
         throw new Error(data.detail || "Failed to change password.");
       }
 
       setMsg("Password changed.");
       setPwForm({ old_password: "", new_password: "", confirm_new: "" });
-    } catch (error: any) {
-      setErr(error.message || "Failed to change password.");
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : "Failed to change password.";
+      setErr(message);
     }
   };
 
@@ -127,7 +135,12 @@ const ProfilePage: React.FC = () => {
       <h2>Profile</h2>
       <form
         onSubmit={saveProfile}
-        style={{ display: "flex", flexDirection: "column", gap: "0.5rem", maxWidth: 480 }}
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: "0.5rem",
+          maxWidth: 480,
+        }}
       >
         <label>
           Display Name
@@ -180,7 +193,12 @@ const ProfilePage: React.FC = () => {
       <h2 style={{ marginTop: "2rem" }}>Change Password</h2>
       <form
         onSubmit={changePassword}
-        style={{ display: "flex", flexDirection: "column", gap: "0.5rem", maxWidth: 480 }}
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: "0.5rem",
+          maxWidth: 480,
+        }}
       >
         <label>
           Old Password

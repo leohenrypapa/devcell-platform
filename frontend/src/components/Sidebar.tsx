@@ -1,5 +1,7 @@
+// filename: frontend/src/components/Sidebar.tsx
 import React from "react";
 import { NavLink } from "react-router-dom";
+
 import { useTheme } from "../context/ThemeContext";
 
 const Sidebar: React.FC = () => {
@@ -10,17 +12,17 @@ const Sidebar: React.FC = () => {
     display: "block",
     padding: "0.5rem 1rem",
     textDecoration: "none",
-    color: isDark ? "#e5e7eb" : "#333",
+    color: isDark ? "#e5e7eb" : "#333333",
     fontSize: "0.9rem",
   };
 
-  const activeBg = isDark ? "#1f2937" : "#eee";
+  const activeBg = isDark ? "#1f2937" : "#eeeeee";
 
   return (
     <aside
       style={{
         width: "220px",
-        borderRight: `1px solid ${isDark ? "#374151" : "#ddd"}`,
+        borderRight: `1px solid ${isDark ? "#374151" : "#dddddd"}`,
         paddingTop: "1rem",
         backgroundColor: isDark ? "#020617" : "#ffffff",
       }}
@@ -34,7 +36,7 @@ const Sidebar: React.FC = () => {
       >
         DevCell
       </h2>
-      <nav style={{ marginTop: "1rem" }}>
+      <nav style={{ marginTop: "1rem" }} aria-label="Main navigation">
         <NavLink
           to="/"
           end

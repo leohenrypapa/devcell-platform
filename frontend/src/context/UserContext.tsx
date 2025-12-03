@@ -1,4 +1,12 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
+// filename: frontend/src/context/UserContext.tsx
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
+
+import { BACKEND_BASE } from "../lib/backend";
 
 export type User = {
   id: number;
@@ -21,12 +29,12 @@ type UserContextValue = {
   isAuthenticated: boolean;
   login: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
+  setUser: React.Dispatch<React.SetStateAction<User | null>>;
 };
 
 const UserContext = createContext<UserContextValue | undefined>(undefined);
 
 const LOCAL_TOKEN_KEY = "devcell_token";
-const BACKEND_BASE = (import.meta as any).env.VITE_BACKEND_BASE_URL || "http://localhost:9000";
 
 export const UserProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
@@ -43,17 +51,18 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({
     }
 
     setToken(storedToken);
-    // Try to fetch /auth/me
+
     fetch(`${BACKEND_BASE}/api/auth/me`, {
       headers: {
         Authorization: `Bearer ${storedToken}`,
       },
     })
       .then(async (res) => {
-        if (!res.ok) throw new Error("Failed");
+        if (!res.ok) {
+          throw new Error("Failed to fetch current user");
+        }
         const data = await res.json();
-        // backend may return the user object directly or wrapped as { user }
-        const returnedUser = (data && (data.user ?? data)) as unknown as User;
+        const returnedUser = (data && (data.user ?? data)) as User;
         setUser(returnedUser);
       })
       .catch(() => {
@@ -73,20 +82,26 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
       });
+
       if (!res.ok) {
         return false;
       }
+
       const data = await res.json();
-      // Support multiple response shapes: { user, access_token } or { access_token, ...userProps }
-      const returnedUser = (data && (data.user ?? data)) as unknown as User;
-      // Access token keys vary by backend; prefer common keys
-      const accessToken = (data && (data.access_token ?? data.accessToken ?? data.token)) as string | undefined | null;
+      const returnedUser = (data && (data.user ?? data)) as User;
+      const accessToken = (data &&
+        (data.access_token ?? data.accessToken ?? data.token)) as
+        | string
+        | undefined
+        | null;
 
       setUser(returnedUser);
+
       if (accessToken) {
         setToken(accessToken);
         window.localStorage.setItem(LOCAL_TOKEN_KEY, accessToken);
       }
+
       return true;
     } catch (e) {
       console.error(e);
@@ -106,6 +121,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({
     isAuthenticated: !!user && !!token,
     login,
     logout,
+    setUser,
   };
 
   if (!initialized) {
@@ -118,6 +134,8 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({
 
 export const useUser = (): UserContextValue => {
   const ctx = useContext(UserContext);
-  if (!ctx) throw new Error("useUser must be used within a UserProvider");
+  if (!ctx) {
+    throw new Error("useUser must be used within a UserProvider");
+  }
   return ctx;
 };

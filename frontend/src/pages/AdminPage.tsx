@@ -1,3 +1,4 @@
+// filename: frontend/src/pages/AdminPage.tsx
 import React, { useEffect, useState } from "react";
 import { useUser } from "../context/UserContext";
 
@@ -22,7 +23,7 @@ const backendBase =
   (import.meta as any).env.VITE_BACKEND_BASE_URL || "http://localhost:9000";
 
 const AdminPage: React.FC = () => {
-  const { user, token } = useUser() as any;
+  const { user, token } = useUser();
 
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
@@ -41,10 +42,12 @@ const AdminPage: React.FC = () => {
     skills: "",
   });
 
-  const isAdmin = user && user.role === "admin";
+  const isAdmin = user?.role === "admin";
 
   const handleNewUserChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+    >
   ) => {
     const { name, value } = e.target;
     setNewUser((prev) => ({ ...prev, [name]: value }));
@@ -52,23 +55,29 @@ const AdminPage: React.FC = () => {
 
   const fetchUsers = async () => {
     if (!token) return;
+
     setLoading(true);
     setError(null);
     setInfo(null);
+
     try {
       const res = await fetch(`${backendBase}/api/auth/users`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
+
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
+        const data = await res.json().catch(() => ({} as { detail?: string }));
         throw new Error(data.detail || "Failed to load users.");
       }
+
       const data = (await res.json()) as UserListResponse;
       setUsers(data.items || []);
-    } catch (err: any) {
-      setError(err.message || "Failed to load users.");
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Failed to load users.";
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -76,15 +85,16 @@ const AdminPage: React.FC = () => {
 
   useEffect(() => {
     if (isAdmin) {
-      fetchUsers();
+      void fetchUsers();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin, token]);
 
   const updateUser = async (id: number, patch: Partial<User>) => {
     if (!token) return;
+
     setError(null);
     setInfo(null);
+
     try {
       const res = await fetch(`${backendBase}/api/auth/users/${id}`, {
         method: "PUT",
@@ -94,74 +104,59 @@ const AdminPage: React.FC = () => {
         },
         body: JSON.stringify(patch),
       });
+
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
+        const data = await res.json().catch(() => ({} as { detail?: string }));
         throw new Error(data.detail || "Failed to update user.");
       }
+
       const updated = (await res.json()) as User;
-      setUsers((prev) =>
-        prev.map((u) => (u.id === updated.id ? updated : u))
-      );
+      setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)));
       setInfo("User updated.");
-    } catch (err: any) {
-      setError(err.message || "Failed to update user.");
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Failed to update user.";
+      setError(message);
     }
   };
 
   const toggleActive = (u: User) => {
-    updateUser(u.id, { is_active: !u.is_active });
+    void updateUser(u.id, { is_active: !u.is_active });
   };
 
   const toggleRole = (u: User) => {
-    const newRole = u.role === "admin" ? "user" : "admin";
-    // Optional: prevent self-demotion
-    if (user && user.id === u.id && u.role === "admin" && newRole === "user") {
-      setError("You cannot remove your own admin role.");
-      return;
-    }
-    updateUser(u.id, { role: newRole });
+    const nextRole = u.role === "admin" ? "user" : "admin";
+    void updateUser(u.id, { role: nextRole });
   };
 
-  const createUser = async (e: React.FormEvent) => {
+  const createUser = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!token) return;
+
     setError(null);
     setInfo(null);
 
-    if (!newUser.username || !newUser.password) {
+    if (!newUser.username.trim() || !newUser.password.trim()) {
       setError("Username and password are required.");
       return;
     }
 
     try {
-      // This assumes you have /api/auth/admin/create_user on backend.
-      // Body includes profile fields + role.
-      const res = await fetch(`${backendBase}/api/auth/admin/create_user`, {
+      const res = await fetch(`${backendBase}/api/auth/users`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          username: newUser.username,
-          password: newUser.password,
-          role: newUser.role,
-          display_name: newUser.display_name || null,
-          job_title: newUser.job_title || null,
-          team_name: newUser.team_name || null,
-          rank: newUser.rank || null,
-          skills: newUser.skills || null,
-        }),
+        body: JSON.stringify(newUser),
       });
 
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
+        const data = await res.json().catch(() => ({} as { detail?: string }));
         throw new Error(data.detail || "Failed to create user.");
       }
 
-      const created = (await res.json()) as User;
-
-      setInfo(`User '${created.username}' created as ${created.role}.`);
+      setInfo("User created.");
       setNewUser({
         username: "",
         password: "",
@@ -172,74 +167,50 @@ const AdminPage: React.FC = () => {
         rank: "",
         skills: "",
       });
-      // reload users list
-      fetchUsers();
-    } catch (err: any) {
-      setError(err.message || "Failed to create user.");
+      void fetchUsers();
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Failed to create user.";
+      setError(message);
     }
   };
 
   if (!isAdmin) {
-    return (
-      <div style={{ padding: "1rem" }}>
-        <h1>Admin</h1>
-        <p>You do not have permission to view this page.</p>
-      </div>
-    );
+    return <p>You must be an admin to view this page.</p>;
   }
 
   return (
-    <div style={{ padding: "1rem" }}>
-      {/* Current User Card */}
-      <section
-        style={{
-          border: "1px solid #ddd",
-          borderRadius: "6px",
-          padding: "1rem",
-          marginBottom: "1rem",
-          maxWidth: "480px",
-        }}
-      >
-        <h2 style={{ marginTop: 0 }}>Current User</h2>
-        <p>
-          <strong>Username:</strong> {user?.username}
-        </p>
-        <p>
-          <strong>Role:</strong> {user?.role}
-        </p>
-        <p>
-          <strong>Created:</strong>{" "}
-          {user?.created_at
-            ? new Date(user.created_at).toLocaleString()
-            : "-"}
-        </p>
-      </section>
+    <div>
+      <h1>Admin Panel</h1>
+      <p style={{ fontSize: "0.9rem", opacity: 0.8 }}>
+        Manage users, roles, and account status. This is the primary admin
+        dashboard for DevCell.
+      </p>
 
-      {/* Create New User Card */}
-      <section
-        style={{
-          border: "1px solid #ddd",
-          borderRadius: "6px",
-          padding: "1rem",
-          marginBottom: "1rem",
-          maxWidth: "600px",
-        }}
-      >
-        <h2 style={{ marginTop: 0 }}>Create New User</h2>
+      {error && (
+        <p style={{ color: "red", marginTop: "0.5rem", marginBottom: 0 }}>
+          {error}
+        </p>
+      )}
+      {info && (
+        <p style={{ color: "green", marginTop: "0.5rem", marginBottom: 0 }}>
+          {info}
+        </p>
+      )}
 
-        {error && <p style={{ color: "red" }}>{error}</p>}
-        {info && <p style={{ color: "green" }}>{info}</p>}
-
+      {/* Create user */}
+      <section style={{ marginTop: "1.5rem" }}>
+        <h2>Create New User</h2>
         <form
           onSubmit={createUser}
           style={{
             display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            columnGap: "0.75rem",
-            rowGap: "0.4rem",
+            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+            gap: "0.5rem",
+            maxWidth: 900,
           }}
         >
-          <label style={{ gridColumn: "1 / 2" }}>
+          <label>
             Username
             <input
               name="username"
@@ -248,8 +219,7 @@ const AdminPage: React.FC = () => {
               required
             />
           </label>
-
-          <label style={{ gridColumn: "2 / 3" }}>
+          <label>
             Password
             <input
               type="password"
@@ -259,102 +229,93 @@ const AdminPage: React.FC = () => {
               required
             />
           </label>
-
-          <label style={{ gridColumn: "1 / 2" }}>
+          <label>
             Role
-            <select
-              name="role"
-              value={newUser.role}
-              onChange={handleNewUserChange}
-            >
-              <option value="user">User</option>
-              <option value="admin">Admin</option>
+            <select name="role" value={newUser.role} onChange={handleNewUserChange}>
+              <option value="user">user</option>
+              <option value="admin">admin</option>
             </select>
           </label>
-
-          <label style={{ gridColumn: "2 / 3" }}>
+          <label>
             Display Name
             <input
               name="display_name"
               value={newUser.display_name}
               onChange={handleNewUserChange}
-              placeholder="e.g. CPT You"
             />
           </label>
-
-          <label style={{ gridColumn: "1 / 2" }}>
+          <label>
             Job Title
             <input
               name="job_title"
               value={newUser.job_title}
               onChange={handleNewUserChange}
-              placeholder="e.g. Dev Cell Lead"
             />
           </label>
-
-          <label style={{ gridColumn: "2 / 3" }}>
-            Team
+          <label>
+            Team Name
             <input
               name="team_name"
               value={newUser.team_name}
               onChange={handleNewUserChange}
-              placeholder="e.g. DevCell"
             />
           </label>
-
-          <label style={{ gridColumn: "1 / 2" }}>
+          <label>
             Rank
             <input
               name="rank"
               value={newUser.rank}
               onChange={handleNewUserChange}
-              placeholder="e.g. CPT, SSG, GS-13"
             />
           </label>
-
-          <label style={{ gridColumn: "1 / 3" }}>
+          <label style={{ gridColumn: "1 / -1" }}>
             Skills
             <textarea
               name="skills"
               value={newUser.skills}
               onChange={handleNewUserChange}
-              placeholder="Optional: Python, FastAPI, malware dev..."
             />
           </label>
-
-          <div style={{ gridColumn: "1 / 3", marginTop: "0.5rem" }}>
+          <div style={{ marginTop: "0.5rem" }}>
             <button type="submit">Create User</button>
           </div>
         </form>
       </section>
 
-      {/* All Users Table */}
-      <section>
+      {/* Users table */}
+      <section style={{ marginTop: "2rem" }}>
         <h2>All Users</h2>
+        <p style={{ fontSize: "0.9rem", opacity: 0.8 }}>
+          Toggle roles and activation status directly from this table.
+        </p>
+
         <button onClick={fetchUsers} disabled={loading} style={{ marginBottom: "0.5rem" }}>
-          {loading ? "Refreshing..." : "Refresh List"}
+          {loading ? "Refreshing..." : "Refresh"}
         </button>
 
-        {users.length === 0 && !loading && <p>No users found.</p>}
+        {loading && <p>Loading users...</p>}
 
-        {users.length > 0 && (
-          <div style={{ overflowX: "auto", marginTop: "0.5rem" }}>
+        {!loading && users.length === 0 && <p>No users found.</p>}
+
+        {!loading && users.length > 0 && (
+          <div style={{ overflowX: "auto" }}>
             <table
               style={{
-                width: "100%",
                 borderCollapse: "collapse",
-                fontSize: "0.9rem",
+                minWidth: 700,
+                maxWidth: "100%",
               }}
             >
               <thead>
                 <tr>
+                  <th style={thStyle}>ID</th>
                   <th style={thStyle}>Username</th>
                   <th style={thStyle}>Display Name</th>
                   <th style={thStyle}>Job Title</th>
                   <th style={thStyle}>Team</th>
                   <th style={thStyle}>Rank</th>
                   <th style={thStyle}>Role</th>
-                  <th style={thStyle}>Active</th>
+                  <th style={thStyle}>Status</th>
                   <th style={thStyle}>Created</th>
                   <th style={thStyle}>Actions</th>
                 </tr>
@@ -362,6 +323,7 @@ const AdminPage: React.FC = () => {
               <tbody>
                 {users.map((u) => (
                   <tr key={u.id}>
+                    <td style={tdStyle}>{u.id}</td>
                     <td style={tdStyle}>{u.username}</td>
                     <td style={tdStyle}>{u.display_name || "-"}</td>
                     <td style={tdStyle}>{u.job_title || "-"}</td>
@@ -399,6 +361,7 @@ const AdminPage: React.FC = () => {
                     </td>
                     <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>
                       <button
+                        type="button"
                         onClick={() => toggleRole(u)}
                         style={{
                           marginRight: "0.25rem",
@@ -409,6 +372,7 @@ const AdminPage: React.FC = () => {
                         {u.role === "admin" ? "Make User" : "Make Admin"}
                       </button>
                       <button
+                        type="button"
                         onClick={() => toggleActive(u)}
                         style={{
                           padding: "0.25rem 0.5rem",

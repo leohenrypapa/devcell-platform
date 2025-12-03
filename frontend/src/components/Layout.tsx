@@ -1,14 +1,16 @@
+// filename: frontend/src/components/Layout.tsx
 import React from "react";
-import Sidebar from "./Sidebar";
-import Topbar from "./Topbar";
+
 import { ToastProvider } from "../context/ToastContext";
 import { useTheme } from "../context/ThemeContext";
+import Sidebar from "./Sidebar";
+import Topbar from "./Topbar";
 
-type Props = {
+type LayoutProps = {
   children: React.ReactNode;
 };
 
-const Layout: React.FC<Props> = ({ children }) => {
+const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { theme } = useTheme();
   const isDark = theme === "dark";
 

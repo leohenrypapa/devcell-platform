@@ -1,19 +1,21 @@
+// filename: frontend/src/App.tsx
 import React from "react";
-import { Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
+
 import Layout from "./components/Layout";
-import DashboardPage from "./pages/DashboardPage";
-import ChatPage from "./pages/ChatPage";
-import KnowledgePage from "./pages/KnowledgePage";
-import StandupPage from "./pages/StandupPage";
-import ProjectsPage from "./pages/ProjectsPage";
-import AdminPage from "./pages/AdminPage";
-import CodeReviewPage from "./pages/CodeReviewPage";
-import LoginPage from "./pages/LoginPage";
-import RegisterPage from "./pages/RegisterPage";
-import ProfilePage from "./pages/ProfilePage";
-import { useUser } from "./context/UserContext";
-import TasksPage from "./pages/TasksPage";
 import { ThemeProvider } from "./context/ThemeContext";
+import { useUser } from "./context/UserContext";
+import AdminPage from "./pages/AdminPage";
+import ChatPage from "./pages/ChatPage";
+import CodeReviewPage from "./pages/CodeReviewPage";
+import DashboardPage from "./pages/DashboardPage";
+import KnowledgePage from "./pages/KnowledgePage";
+import LoginPage from "./pages/LoginPage";
+import ProfilePage from "./pages/ProfilePage";
+import ProjectsPage from "./pages/ProjectsPage";
+import RegisterPage from "./pages/RegisterPage";
+import StandupPage from "./pages/StandupPage";
+import TasksPage from "./pages/TasksPage";
 
 const App: React.FC = () => {
   const { isAuthenticated, user } = useUser();
@@ -35,40 +37,49 @@ const App: React.FC = () => {
   const mainRoutes = (
     <Layout>
       <Routes>
-        {/* Protected routes */}
         <Route
           path="/"
-          element={isAuthenticated ? <DashboardPage /> : <Navigate to="/login" />}
+          element={
+            isAuthenticated ? <DashboardPage /> : <Navigate to="/login" replace />
+          }
         />
         <Route
           path="/chat"
-          element={isAuthenticated ? <ChatPage /> : <Navigate to="/login" />}
+          element={isAuthenticated ? <ChatPage /> : <Navigate to="/login" replace />}
         />
         <Route
           path="/knowledge"
-          element={isAuthenticated ? <KnowledgePage /> : <Navigate to="/login" />}
+          element={
+            isAuthenticated ? <KnowledgePage /> : <Navigate to="/login" replace />
+          }
         />
         <Route
           path="/standup"
-          element={isAuthenticated ? <StandupPage /> : <Navigate to="/login" />}
+          element={
+            isAuthenticated ? <StandupPage /> : <Navigate to="/login" replace />
+          }
         />
         <Route
           path="/tasks"
-          element={isAuthenticated ? <TasksPage /> : <Navigate to="/login" />}
+          element={isAuthenticated ? <TasksPage /> : <Navigate to="/login" replace />}
         />
         <Route
           path="/projects"
-          element={isAuthenticated ? <ProjectsPage /> : <Navigate to="/login" />}
+          element={
+            isAuthenticated ? <ProjectsPage /> : <Navigate to="/login" replace />
+          }
         />
         <Route
           path="/review"
           element={
-            isAuthenticated ? <CodeReviewPage /> : <Navigate to="/login" />
+            isAuthenticated ? <CodeReviewPage /> : <Navigate to="/login" replace />
           }
         />
         <Route
           path="/profile"
-          element={isAuthenticated ? <ProfilePage /> : <Navigate to="/login" />}
+          element={
+            isAuthenticated ? <ProfilePage /> : <Navigate to="/login" replace />
+          }
         />
         <Route
           path="/admin"
@@ -82,13 +93,14 @@ const App: React.FC = () => {
             )
           }
         />
-        {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>
   );
 
-  return <ThemeProvider>{isAuthEntryPage ? authRoutes : mainRoutes}</ThemeProvider>;
+  return (
+    <ThemeProvider>{isAuthEntryPage ? authRoutes : mainRoutes}</ThemeProvider>
+  );
 };
 
 export default App;
