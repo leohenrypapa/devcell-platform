@@ -9,6 +9,62 @@
 ### Fixed
 -
 
+
+---
+
+## **[0.5.3] - 2025-12-03**
+
+### Added
+
+* **Knowledgebase subsystem modularization**
+
+  * New directory `services/knowledge/` containing:
+
+    * `config.py` — central paths (`knowledgebase/`, Chroma dir)
+    * `client.py` — lazy Chroma persistent client initialization
+    * `embedder.py` — cached SentenceTransformer loader
+    * `indexer.py` — file extraction, chunking, indexing, and single-file updates
+    * `query.py` — semantic RAG lookup
+    * `documents.py` — CRUD-style document list / delete / add-text APIs
+  * Automatic knowledgebase indexing during `main.py` startup now uses `index_files_in_knowledgebase()`.
+
+* **Standup → Task conversion service**
+
+  * New `services/standup/conversion.py` containing all conversion logic previously in router.
+  * Provides `convert_standup_to_tasks()` for route-level calls.
+
+* **Projects service package**
+
+  * Added `services/projects/` package with `crud.py` consolidating project CRUD operations.
+  * Added `services/projects/__init__.py` exporting project functions.
+
+### Changed
+
+* Split monolithic `knowledge_service.py` into modular service components listed above.
+* Refactored `routes/knowledge.py` to import from new modular knowledge services.
+* Refactored `main.py` startup sequence to use new knowledge initialization function.
+* Updated `routes/standup.py` to call service-layer conversion logic instead of inline processing.
+* Updated import paths in:
+
+  * `standup_store.py`
+  * `dashboard_service.py`
+  * `project_summary.py`
+  * `routes/projects.py`
+* Renamed and standardized `Knowledgebase/` directory to lowercase `knowledgebase/`.
+* Updated Chroma vector deletion logic to use `$and` operator for valid filter syntax.
+
+### Fixed
+
+* **Knowledgebase document deletion bug**
+
+  * Fixed Chroma filter validation error (`"Expected where to have exactly one operator"`).
+  * New implementation uses:
+
+    * `{"title": title}` when path missing
+    * `{"$and": [{"title": title}, {"path": path}]}` when path provided
+* Removed legacy `knowledge_service.py` and `project_store.py` to prevent accidental imports.
+* Ensured all new service directories (`knowledge/`, `projects/`, `standup/`) are properly added to Git.
+
 ---
 
 ## [0.5.2] - 2025-12-03
