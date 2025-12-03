@@ -15,7 +15,7 @@ from app.api.routes import (
 )
 
 from app.db import init_db
-from app.services import knowledge_service   # existing
+from app.services.knowledge import index_files_in_knowledgebase
 from app.services.user_store import ensure_default_admin  # 👈 NEW import
 
 
@@ -60,7 +60,8 @@ def create_app() -> FastAPI:
         ensure_default_admin()
 
         # Initialize RAG system (Chroma + embeddings + file indexing)
-        knowledge_service.index_files_in_knowledgebase()
+        index_files_in_knowledgebase()
+        
         print("✔ Knowledgebase indexed and ready.")
 
     return app

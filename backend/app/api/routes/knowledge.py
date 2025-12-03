@@ -19,7 +19,13 @@ from app.schemas.knowledge import (
     AddTextRequest,
     KnowledgeSourceChunk,
 )
-from app.services import knowledge_service
+from app.services.knowledge import (
+    query_knowledge,
+    add_text_document,
+    index_single_file,
+    list_documents,
+    delete_document,
+)
 from app.schemas.knowledge import KnowledgeDocument
 from app.core.llm_client import llm_chat
 
@@ -128,7 +134,7 @@ async def query_knowledge_endpoint(
     stitched snippets if the LLM call fails.
     """
     # 1) Retrieve relevant chunks from Chroma
-    sources: List[KnowledgeSourceChunk] = knowledge_service.query_knowledge(
+    sources: List[KnowledgeSourceChunk] = query_knowledge(
         query=payload.query,
         top_k=payload.top_k,
     )
@@ -199,7 +205,7 @@ async def add_text_document_endpoint(
     if not payload.text.strip():
         raise HTTPException(status_code=400, detail="Text is required.")
 
-    knowledge_service.add_text_document(
+    add_text_document(
         title=payload.title.strip(),
         text=payload.text,
     )
@@ -225,7 +231,7 @@ async def upload_file_to_knowledgebase(
 
     # Save file into Knowledgebase/
     base_dir = Path(__file__).resolve().parents[2]
-    kb_dir = base_dir / "Knowledgebase"
+    kb_dir = base_dir / "knowledgebase"
     kb_dir.mkdir(parents=True, exist_ok=True)
 
     save_path = kb_dir / file.filename
@@ -242,7 +248,7 @@ async def upload_file_to_knowledgebase(
 
     # Index just this file
     try:
-        knowledge_service.index_single_file(save_path)
+        index_single_file(save_path)
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -258,7 +264,7 @@ async def list_knowledge_documents(
     """
     List documents currently indexed in the knowledgebase (from Chroma metadata).
     """
-    docs = knowledge_service.list_documents()
+    docs = list_documents()
     return docs
 
 
@@ -280,5 +286,5 @@ async def delete_knowledge_document(
     if not title:
         raise HTTPException(status_code=400, detail="Title is required.")
 
-    knowledge_service.delete_document(title=title, path=payload.path)
+    delete_document(title=title, path=payload.path)
     return {"status": "ok"}
