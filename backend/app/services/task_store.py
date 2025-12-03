@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import List, Optional
 
 from app.schemas.task import TaskCreate, TaskEntry, TaskUpdate
-from app.services.project_store import get_project_by_id
+from app.services.projects import get_project_by_id
 from app.db import get_connection
 
 

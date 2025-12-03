@@ -2,7 +2,13 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 
 from app.schemas.project import Project, ProjectList, ProjectCreate, ProjectUpdate
-from app.services.project_store import add_project, list_projects, get_project_by_id, delete_project, update_project
+from app.services.projects import (
+    add_project,
+    list_projects,
+    get_project_by_id,
+    delete_project,
+    update_project,
+)
 from app.services.project_summary import summarize_project_today
 from app.services.auth_service import get_current_user
 from app.schemas.user import UserPublic

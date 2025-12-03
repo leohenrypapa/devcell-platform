@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Tuple
 
 from app.services.standup_store import get_today_standups
-from app.services.project_store import list_projects
+from app.services.projects import list_projects
 from app.core.llm_client import llm_chat
 
 

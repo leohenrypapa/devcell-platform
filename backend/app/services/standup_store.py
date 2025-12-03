@@ -3,7 +3,7 @@ from datetime import datetime, date
 from typing import List, Optional
 
 from app.schemas.standup import StandupCreate, StandupEntry, StandupUpdate
-from app.services.project_store import get_project_by_id
+from app.services.projects import get_project_by_id
 from app.db import get_connection
 
 

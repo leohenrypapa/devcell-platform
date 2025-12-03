@@ -1,6 +1,6 @@
 from typing import Tuple
 
-from app.services.project_store import get_project_by_id
+from app.services.projects import get_project_by_id
 from app.services.standup_store import get_today_standups_for_project
 from app.core.llm_client import llm_chat
 
