@@ -1,3 +1,0 @@
-This is a RAG upload test file.
-Only this file mentions ORANGE EAGLE 789.
-If the system can find ORANGE EAGLE 789, then PDF/TXT upload RAG works.
