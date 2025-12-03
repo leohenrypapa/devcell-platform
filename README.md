@@ -1,126 +1,151 @@
 # DevCell Platform
 
-DevCell is a lightweight internal developer coordination platform designed for small engineering teams (military, research, startup) that want structured workflow tools without heavy enterprise systems.  
-It runs fully self-hosted and integrates directly with **your own LLM server**.
+DevCell is a lightweight, self-hosted developer coordination platform for small engineering teams (military, research, startup) who want structured workflow tools **without heavy enterprise systems** — and who prefer running everything on their **own LLM servers**.
 
-The platform provides:
+It provides a unified place for:
 
-- Shared task tracking  
-- Daily standups  
-- Dashboard morning brief  
-- Knowledgebase with RAG search  
-- AI-assisted summaries and SITREPs  
-- Local role-based authentication  
-- Clean, modern React UI  
-
----
-
-## 🚀 Features
-
-### **Developer Workflow**
-- **Tasks Module**
-  - Create/edit tasks
-  - Inline status & progress updates
-  - Search bar (title, description, owner, project)
-  - Archive / unarchive
-  - Status pills (`todo`, `in_progress`, `blocked`, `done`)
-  - Dashboard integration (My Tasks, Recent Tasks)
-
-- **Projects**
-  - Track objectives by project
-  - Filter tasks by project
-  - Project-level summaries (future)
-
-- **Daily Standups**
-  - Yesterday / Today / Blockers
-  - Markdown export
-  - AI-generated standup summary
-  - Convert standup items → tasks
-
-### **AI-Integrated Modules**
-- **LLM Chat Assistant**
-  - Chat with your self-hosted LLM
-  - Great for reasoning, explanations, debugging
-
-- **AI Code Review**
-  - Paste code + instructions
-  - Your LLM returns improvements, optimizations, security notes
-
-- **AI SITREP**
-  - Dashboard button generates a unit Situation Report
-  - Based on tasks, standups, and recent activity
-
-- **Knowledgebase / RAG**
-  - Upload PDF / TXT / MD
-  - Automatic text extraction
-  - Vector embedding + Chroma indexing
-  - Query documents using RAG
-
-### **Dashboard**
-- Morning Brief (My Today + My Tasks)
-- Recent Tasks (last 5)
-- Recent Standups (last 3 days)
-- Quick Actions
-- Unit Snapshot
-- AI Unit SITREP generator
-
-### **Identity & Access**
-- Local users (SQLite-based)
-- Username/password login
-- `admin` vs `standard` roles
-- Admin user management page
+* Task management
+* Daily standups
+* Dashboard morning briefs
+* Knowledgebase + RAG search
+* Local LLM chat, SITREP, and code review
+* Role-based access control
+* Clean React UI + FastAPI backend
 
 ---
 
-## 🏗 High-Level Architecture
+# 🚀 Features
 
-### **Frontend**
-- React + TypeScript + Vite
-- Pages:
-  - Login
-  - Dashboard
-  - Tasks
-  - Standups
-  - Projects
-  - Knowledgebase
-  - LLM Chat
-  - Code Review
-  - Admin
-- Global contexts:
-  - `UserContext`  
-  - `ThemeContext` (light/dark)  
-  - `ToastContext`  
-- Clean UI layout (Sidebar + Topbar)
+## **Developer Workflow**
 
-### **Backend**
-- FastAPI + Python 3
-- Modules:
-  - Auth
-  - Tasks
-  - Standups
-  - Dashboard
-  - Projects
-  - Knowledgebase / RAG
-  - LLM proxy tools
-- SQLite for relational data
-- Chroma for vector embeddings
-- JWT-based authentication
+### **Tasks**
 
-### **LLM Server**
-- External model you run locally:
-  - OpenAI API-compatible  
-  - Qwen  
-  - LM Studio  
-  - Ollama  
-  - vLLM  
-  - Custom endpoints  
-- Configurable via environment variables.
+* Create / edit / archive tasks
+* Status pills (`todo`, `in_progress`, `blocked`, `done`)
+* Full-text search (title, description, owner, project)
+* Dashboard widgets: My Tasks, Recent Tasks
+
+### **Projects**
+
+* Group tasks by project
+* Future: project-level summaries, objectives
+
+### **Daily Standups**
+
+* Yesterday / Today / Blockers
+* Markdown export
+* Convert standup items → tasks
+* AI-generated daily summary
 
 ---
 
-## ⚡ Quick Start (Local Development)
+## **AI-Integrated Modules**
 
-### 1. Backend
+### **Chat Assistant**
+
+* Chat with your **local** LLM (Ollama, LM Studio, Qwen, vLLM, OpenAI-compatible)
+* Good for reasoning, debugging, and brainstorming
+
+### **AI Code Review**
+
+* Paste code + instructions
+* Your LLM returns improvements, risks, refactoring suggestions
+
+### **AI SITREP**
+
+* Dashboard “Generate SITREP” button
+* Produces a unit / team snapshot from tasks + standups + recent activity
+
+### **Knowledgebase + RAG**
+
+* Upload PDF / TXT / MD
+* Automatic extraction + embedding
+* Chroma vector DB
+* Semantic search across all docs
+
+---
+
+## **Dashboard**
+
+* Morning Brief
+* My Tasks
+* Recent Tasks
+* Recent Standups
+* Unit Snapshot
+* Quick Actions
+* Generate AI SITREP
+
+---
+
+## **Identity & Access Management**
+
+* Local SQLite users
+* Username/password auth
+* JWT
+* `admin` vs `standard` roles
+* Admin user management page
+
+---
+
+# 🏗 High-Level Architecture
+
+```
+[ React Frontend ]  <----->  [ FastAPI Backend ]  <----->  [ LLM Server ]
+        │                            │                          │
+        │                            │                          └── OpenAI-compatible endpoint
+        │                            ├── SQLite DB (relational)
+        │                            └── Chroma DB (vector store)
+```
+
+---
+
+## **Frontend**
+
+* React + TypeScript + Vite
+* Pages:
+
+  * Login, Dashboard, Tasks, Projects, Standups
+  * Knowledgebase, Chat, Code Review
+  * Admin
+* Contexts:
+
+  * `UserContext`, `ThemeContext`, `ToastContext`
+* Modern layout (Sidebar + Topbar)
+
+## **Backend**
+
+* FastAPI + Python 3
+* Modules:
+
+  * Auth, Tasks, Standups, Dashboard, Projects
+  * Knowledgebase / RAG
+  * LLM proxy utilities
+* SQLite for relational data
+* Chroma for embeddings
+* JWT authentication
+
+## **LLM Server**
+
+Compatible servers:
+
+* Qwen Coder 7B
+* OpenAI-compatible endpoints
+* LM Studio
+* Ollama
+* vLLM
+* Custom self-hosted inference servers
+
+Configurable via env:
+
+```
+LLM_ENDPOINT=http://localhost:8001/api/v1/query
+```
+
+---
+
+# ⚡ Quick Start (Local Development)
+
+## 1. Backend
 
 ```bash
 cd backend
@@ -131,18 +156,18 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --host 0.0.0.0 --port 9000
 ```
 
-Environment variables (`backend/.env`):
+Environment file (`backend/.env`):
 
 ```env
-JWT_SECRET=your_secret
+JWT_SECRET=your_secret_here
 JWT_ALGORITHM=HS256
 LLM_ENDPOINT=http://localhost:8001/api/v1/query
-KNOWLEDGEBASE_DIR=Knowledgebase
+KNOWLEDGEBASE_DIR=../knowledgebase
 ```
 
 ---
 
-### 2. Frontend
+## 2. Frontend
 
 ```bash
 cd frontend
@@ -157,50 +182,88 @@ VITE_API_URL=http://localhost:9000
 ```
 
 Frontend runs at:
+
 ```
 http://localhost:5173
 ```
 
 ---
 
-## 📁 Project Structure
+# 📁 Final Project Structure
+
+(Reflects the cleaned, recommended layout)
 
 ```
 devcell-platform/
-  backend/
-  frontend/
-  docs/
-  Knowledgebase/
-  README.md
+│
+├── backend/
+│   ├── app/
+│   │   ├── api/           # Routes
+│   │   ├── core/          # Settings, LLM client
+│   │   ├── schemas/       # Pydantic models
+│   │   ├── services/      # Business logic
+│   │   ├── knowledgebase/ # RAG documents (canonical location)
+│   │   ├── main.py
+│   │   └── db.py
+│   ├── tests/
+│   └── requirements.txt
+│
+├── frontend/
+│   ├── src/
+│   │   ├── components/
+│   │   ├── pages/
+│   │   ├── context/
+│   │   ├── api/
+│   │   └── App.tsx
+│   └── __tests__/
+│
+├── scripts/
+│   ├── structure.sh
+│   ├── extract_feature_files.sh
+│   └── README.md
+│
+├── knowledgebase/         # For RAG docs (root-level shared)
+│
+├── docs/                  # 00_Overview → 99_Design_Decisions
+│
+└── README.md
 ```
 
 ---
 
-## 📚 Documentation
+# 📚 Documentation (Full)
 
-Full documentation is in the `docs/` directory:
+All docs live in `docs/`:
 
-- `00_Overview.md`
-- `01_Getting_Started.md`
-- `02_Architecture.md`
-- `03_Developer_Guide.md`
-- `04_Operations.md`
-- `05_API_Reference.md`
-- `99_Design_Decisions.md`
-
----
-
-## 🧭 Roadmap (Summary)
-
-- Dashboard Phase 2 widgets  
-- RAG metadata + filters  
-- Notification system  
-- Permissions model  
-- Plugin framework  
-- Multi-tenant support (future)
+* `00_Overview.md`
+* `01_Getting_Started.md`
+* `02_Architecture.md`
+* `03_Developer_Guide.md`
+* `04_Operations.md`
+* `05_API_Reference.md`
+* `99_Design_Decisions.md`
 
 ---
 
-## ⚠️ Disclaimer
-DevCell is designed for internal use within secure environments and is not a public SaaS platform.  
-External security hardening (TLS, reverse proxy, SSH policy) is recommended for production.
+# 🧭 Roadmap (Short Version)
+
+* Dashboard Phase 2 widgets
+* Knowledgebase metadata + source filters
+* Notifications + email/webhooks
+* Role-based permissions per module
+* Plugin system
+* Multi-tenant support
+
+---
+
+# ⚠️ Disclaimer
+
+DevCell is intended for internal use within secure environments.
+If deploying externally, add:
+
+* TLS / HTTPS
+* Reverse proxy (NGINX, Caddy)
+* Firewall & Zero Trust network rules
+* Strong password enforcement
+
+---
