@@ -26,6 +26,7 @@ def _row_to_task(row) -> TaskEntry:
         progress=row["progress"],
         due_date=row["due_date"],
         is_active=bool(row["is_active"]),
+        origin_standup_id=row["origin_standup_id"] if "origin_standup_id" in row.keys() else None,
         created_at=datetime.fromisoformat(row["created_at"]),
         updated_at=datetime.fromisoformat(row["updated_at"]),
         project_name=project_name,
@@ -40,8 +41,20 @@ def add_task(owner: str, data: TaskCreate) -> TaskEntry:
 
     cur.execute(
         """
-        INSERT INTO tasks (owner, title, description, status, project_id, progress, due_date, is_active, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO tasks (
+            owner,
+            title,
+            description,
+            status,
+            project_id,
+            progress,
+            due_date,
+            is_active,
+            origin_standup_id,
+            created_at,
+            updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             owner,
@@ -52,6 +65,7 @@ def add_task(owner: str, data: TaskCreate) -> TaskEntry:
             data.progress,
             data.due_date.isoformat() if data.due_date else None,
             1 if data.is_active else 0,
+            data.origin_standup_id,
             now,
             now,
         ),
@@ -85,6 +99,7 @@ def list_tasks(
     project_id: Optional[int] = None,
     status: Optional[str] = None,
     active_only: bool = True,
+    origin_standup_id: Optional[int] = None,
 ) -> List[TaskEntry]:
     conn = get_connection()
     cur = conn.cursor()
@@ -108,6 +123,10 @@ def list_tasks(
     if active_only:
         clauses.append("is_active = 1")
 
+    if origin_standup_id is not None:
+        clauses.append("origin_standup_id = ?")
+        params.append(origin_standup_id)
+
     if clauses:
         query += " WHERE " + " AND ".join(clauses)
 
@@ -118,6 +137,13 @@ def list_tasks(
     conn.close()
 
     return [_row_to_task(r) for r in rows]
+
+
+def list_tasks_for_standup(standup_id: int) -> List[TaskEntry]:
+    """
+    Convenience helper: list all tasks that were created from a given standup.
+    """
+    return list_tasks(origin_standup_id=standup_id, active_only=False)
 
 
 def update_task(task_id: int, data: TaskUpdate) -> Optional[TaskEntry]:
@@ -145,7 +171,14 @@ def update_task(task_id: int, data: TaskUpdate) -> Optional[TaskEntry]:
     cur.execute(
         """
         UPDATE tasks
-        SET title = ?, description = ?, status = ?, project_id = ?, progress = ?, due_date = ?, is_active = ?, updated_at = ?
+        SET title = ?,
+            description = ?,
+            status = ?,
+            project_id = ?,
+            progress = ?,
+            due_date = ?,
+            is_active = ?,
+            updated_at = ?
         WHERE id = ?
         """,
         (

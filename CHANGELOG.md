@@ -11,6 +11,32 @@
 
 ---
 
+## [0.5.1] - 2025-12-03
+
+### Added
+- **Standups → Tasks Workflow**
+  - Added `origin_standup_id` field to tasks schema and database, linking tasks back to the standup entry that created them.
+  - New backend endpoints:
+    - `GET /api/standup/{id}/tasks` — list tasks created from a given standup (admins see all; users see their own).
+    - `POST /api/standup/{id}/convert` — structured conversion of a standup into one or more tasks via a rich payload.
+  - `task_store.py` now supports filtering by `origin_standup_id` and provides `list_tasks_for_standup()`.
+  - Standup → Tasks conversion modal on the Standups page:
+    - Parses Yesterday / Today / Blockers lines.
+    - Per-line checkboxes and editable task titles.
+    - Shared settings: default project, default due date (none/today/tomorrow).
+    - Optional “Remember defaults” using `localStorage`.
+  - Standups page shows a **Linked Tasks** panel per standup, displaying tasks created from that standup.
+  - Tasks page now surfaces `origin_standup_id` in task metadata (“From Standup #ID”).
+
+### Changed
+- Updated tasks schema and store to persist and surface the `origin_standup_id` link.
+- Standups page now preloads linked tasks for the visible date when authenticated.
+
+### Fixed
+-
+
+---
+
 ## [0.5.0] - 2025-12-01
 
 ### Added

@@ -17,6 +17,7 @@ type Task = {
   created_at: string;
   updated_at: string;
   is_active: boolean;
+  origin_standup_id?: number | null;
 };
 
 type TaskListResponse = {
@@ -35,7 +36,13 @@ type ProjectListResponse = {
 type TaskUpdatePayload = Partial<
   Pick<
     Task,
-    "status" | "progress" | "is_active" | "title" | "description" | "project_id" | "due_date"
+    | "status"
+    | "progress"
+    | "is_active"
+    | "title"
+    | "description"
+    | "project_id"
+    | "due_date"
   >
 >;
 
@@ -367,6 +374,7 @@ const TasksPage: React.FC = () => {
         return haystack.includes(normalizedSearch);
       })
     : tasks;
+
   return (
     <div style={{ padding: "1.5rem" }}>
       <h1>Tasks</h1>
@@ -427,16 +435,16 @@ const TasksPage: React.FC = () => {
           </select>
         </label>
 
-          <label style={{ fontSize: "0.9rem" }}>
-            Search:&nbsp;
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Title, description, owner..."
-              style={{ minWidth: "180px" }}
-            />
-          </label>
+        <label style={{ fontSize: "0.9rem" }}>
+          Search:&nbsp;
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Title, description, owner..."
+            style={{ minWidth: "180px" }}
+          />
+        </label>
 
         <label style={{ fontSize: "0.9rem" }}>
           Project:&nbsp;
@@ -478,12 +486,17 @@ const TasksPage: React.FC = () => {
           type="button"
           onClick={() => {
             const visibleIds = filteredTasks.map((t) => t.id);
-            const allSelected = visibleIds.length > 0 &&
+            const allSelected =
+              visibleIds.length > 0 &&
               visibleIds.every((id) => selectedTaskIds.includes(id));
             if (allSelected) {
-              setSelectedTaskIds((prev) => prev.filter((id) => !visibleIds.includes(id)));
+              setSelectedTaskIds((prev) =>
+                prev.filter((id) => !visibleIds.includes(id))
+              );
             } else {
-              setSelectedTaskIds((prev) => Array.from(new Set([...prev, ...visibleIds])));
+              setSelectedTaskIds((prev) =>
+                Array.from(new Set([...prev, ...visibleIds]))
+              );
             }
           }}
         >
@@ -613,14 +626,21 @@ const TasksPage: React.FC = () => {
                     </span>
                   </div>
 
-                  {/* Meta line: owner / created / due / archived */}
-                  <div style={{ fontSize: "0.8rem", opacity: 0.8, marginTop: "0.25rem" }}>
+                  {/* Meta line: owner / created / due / archived / origin standup */}
+                  <div
+                    style={{
+                      fontSize: "0.8rem",
+                      opacity: 0.8,
+                      marginTop: "0.25rem",
+                    }}
+                  >
                     Owner: {t.owner}
                     {" · "}
                     Created: {new Date(t.created_at).toLocaleString()}
                     {t.due_date && (
                       <>
-                        {" · "}Due: {new Date(t.due_date).toLocaleDateString()}
+                        {" · "}Due:{" "}
+                        {new Date(t.due_date).toLocaleDateString()}
                       </>
                     )}
                     {!t.is_active && (
@@ -629,12 +649,16 @@ const TasksPage: React.FC = () => {
                         <span style={{ color: "red" }}>Archived</span>
                       </>
                     )}
+                    {t.origin_standup_id != null && (
+                      <>
+                        {" · "}
+                        <span>From Standup #{t.origin_standup_id}</span>
+                      </>
+                    )}
                   </div>
 
                   {t.description && (
-                    <div style={{ marginTop: "0.25rem" }}>
-                      {t.description}
-                    </div>
+                    <div style={{ marginTop: "0.25rem" }}>{t.description}</div>
                   )}
 
                   {/* Progress bar */}
@@ -660,7 +684,8 @@ const TasksPage: React.FC = () => {
                         style={{
                           width: `${Math.max(0, Math.min(100, t.progress))}%`,
                           height: "100%",
-                          backgroundColor: t.status === "done" ? "#16a34a" : "#2563eb",
+                          backgroundColor:
+                            t.status === "done" ? "#16a34a" : "#2563eb",
                           transition: "width 0.15s ease-out",
                         }}
                       />
@@ -795,7 +820,9 @@ const TasksPage: React.FC = () => {
               Edit Task
             </h2>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+            <div
+              style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}
+            >
               <label style={{ fontSize: "0.9rem" }}>
                 Title
                 <input

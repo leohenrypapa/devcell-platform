@@ -82,7 +82,7 @@ def init_db() -> None:
         """
     )
 
-    # Tasks table (NEW)
+    # Tasks table
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS tasks (
@@ -95,12 +95,22 @@ def init_db() -> None:
             progress INTEGER NOT NULL DEFAULT 0,
             due_date TEXT,
             is_active INTEGER NOT NULL DEFAULT 1,
+            origin_standup_id INTEGER,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL,
-            FOREIGN KEY (project_id) REFERENCES projects (id)
+            FOREIGN KEY (project_id) REFERENCES projects (id),
+            FOREIGN KEY (origin_standup_id) REFERENCES standups (id)
         );
         """
     )
+
+    # Backwards-compatible migration: add origin_standup_id to existing tasks table if missing.
+    # SQLite does not support "ADD COLUMN IF NOT EXISTS", so we ignore failures.
+    try:
+        cur.execute("ALTER TABLE tasks ADD COLUMN origin_standup_id INTEGER")
+    except Exception:
+        # Column already exists or table did not exist prior to CREATE TABLE above.
+        pass
 
     conn.commit()
     conn.close()

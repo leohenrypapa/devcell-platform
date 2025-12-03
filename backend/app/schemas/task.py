@@ -23,8 +23,11 @@ class TaskCreate(TaskBase):
     """
     Task creation payload. The owner is taken from the authenticated user
     on the backend and not supplied by the client.
+
+    `origin_standup_id` is an optional link back to the standup entry
+    that this task was created from (if any).
     """
-    pass
+    origin_standup_id: Optional[int] = None
 
 
 class TaskUpdate(BaseModel):
@@ -40,6 +43,7 @@ class TaskUpdate(BaseModel):
 class TaskEntry(TaskBase):
     id: int
     owner: str
+    origin_standup_id: Optional[int] = None
     created_at: datetime
     updated_at: datetime
     project_name: Optional[str] = None

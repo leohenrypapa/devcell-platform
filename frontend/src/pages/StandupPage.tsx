@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useUser } from "../context/UserContext";
 import { useToast } from "../context/ToastContext";
+import StandupTaskConvertModal from "../components/StandupTaskConvertModal";
 
 type StandupEntry = {
   id: number;
@@ -48,6 +49,7 @@ type Task = {
   created_at: string;
   updated_at: string;
   is_active: boolean;
+  origin_standup_id?: number | null;
 };
 
 type TaskListResponse = {
@@ -56,7 +58,6 @@ type TaskListResponse = {
 
 const StandupPage: React.FC = () => {
   const { user, isAuthenticated, token } = useUser();
-
   const { showToast } = useToast();
 
   const loggedInName = user?.username ?? "";
@@ -90,18 +91,64 @@ const StandupPage: React.FC = () => {
   const [taskError, setTaskError] = useState<string | null>(null);
   const [taskFilterProjectId, setTaskFilterProjectId] = useState<number | null>(null);
 
-  const backendBase = (import.meta as any).env.VITE_BACKEND_BASE_URL || "http://localhost:9000";
+  const [convertTarget, setConvertTarget] = useState<StandupEntry | null>(null);
+
+  const [linkedTasksByStandup, setLinkedTasksByStandup] = useState<Record<number, Task[]>>({});
+  const [loadingLinkedTasksByStandup, setLoadingLinkedTasksByStandup] = useState<Record<number, boolean>>({});
+
+  const backendBase =
+    (import.meta as any).env.VITE_BACKEND_BASE_URL || "http://localhost:9000";
+
+  const loadLinkedTasksForStandup = async (standupId: number) => {
+    if (!isAuthenticated || !token) {
+      return;
+    }
+    setLoadingLinkedTasksByStandup((prev) => ({ ...prev, [standupId]: true }));
+    try {
+      const res = await fetch(
+        `${backendBase}/api/standup/${standupId}/tasks`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data: TaskListResponse = await res.json();
+      setLinkedTasksByStandup((prev) => ({
+        ...prev,
+        [standupId]: data.items || [],
+      }));
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingLinkedTasksByStandup((prev) => ({
+        ...prev,
+        [standupId]: false,
+      }));
+    }
+  };
 
   const loadStandupsForDate = async (dateStr: string) => {
     setLoadingEntries(true);
     setError(null);
     try {
       const res = await fetch(
-        `${backendBase}/api/standup/by-date?date=${encodeURIComponent(dateStr)}`
+        `${backendBase}/api/standup/by-date?date=${encodeURIComponent(
+          dateStr
+        )}`
       );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data: StandupListResponse = await res.json();
-      setEntries(data.items || []);
+      const items = data.items || [];
+      setEntries(items);
+
+      // Preload linked tasks for the visible standups (if authenticated).
+      if (isAuthenticated && token) {
+        items.forEach((entry) => {
+          loadLinkedTasksForStandup(entry.id);
+        });
+      }
     } catch (err) {
       console.error(err);
       setError("Failed to load standups.");
@@ -124,6 +171,7 @@ const StandupPage: React.FC = () => {
       setLoadingProjects(false);
     }
   };
+
   const loadMyTasks = async (projectId?: number | null) => {
     if (!isAuthenticated || !token) {
       setTasks([]);
@@ -213,7 +261,6 @@ const StandupPage: React.FC = () => {
       alert("Failed to update task.");
     }
   };
-
 
   useEffect(() => {
     loadStandupsForDate(selectedDate);
@@ -429,9 +476,10 @@ const StandupPage: React.FC = () => {
   };
 
   const isToday = selectedDate === new Date().toISOString().slice(0, 10);
-  const displayEntries = showMineOnly && loggedInName
-    ? entries.filter((e) => e.name === loggedInName)
-    : entries;
+  const displayEntries =
+    showMineOnly && loggedInName
+      ? entries.filter((e) => e.name === loggedInName)
+      : entries;
 
   const handleExportStandupsMarkdown = async () => {
     if (!displayEntries || displayEntries.length === 0) {
@@ -446,7 +494,10 @@ const StandupPage: React.FC = () => {
       lines.push(`_Historical view_`, "");
     }
     if (showMineOnly && loggedInName) {
-      lines.push(`_Filtered: only standups by **${loggedInName}**_`, "");
+      lines.push(
+        `_Filtered: only standups by **${loggedInName}**_`,
+        ""
+      );
     } else {
       lines.push("");
     }
@@ -522,7 +573,8 @@ const StandupPage: React.FC = () => {
         <h2>{editingId ? "Edit Standup" : "Submit Standup"}</h2>
         <p style={{ fontSize: "0.9rem", opacity: 0.7 }}>
           Logged in as <strong>{loggedInName || "Unknown user"}</strong>.
-          Submissions are always recorded with your account and today&apos;s date/time.
+          Submissions are always recorded with your account and today&apos;s
+          date/time.
         </p>
 
         <div style={{ marginBottom: "0.5rem" }}>
@@ -640,13 +692,13 @@ const StandupPage: React.FC = () => {
             {!isToday && " (historical view)"}
           </h2>
 
-          <button
-            type="button"
-            onClick={handleExportStandupsMarkdown}
-            style={{ fontSize: "0.8rem" }}
-          >
-            Export as Markdown
-          </button>
+        <button
+          type="button"
+          onClick={handleExportStandupsMarkdown}
+          style={{ fontSize: "0.8rem" }}
+        >
+          Export as Markdown
+        </button>
         </div>
 
         <div style={{ marginBottom: "0.5rem", fontSize: "0.9rem" }}>
@@ -667,81 +719,162 @@ const StandupPage: React.FC = () => {
           <p>No standups recorded for this date.</p>
         ) : (
           <ul style={{ listStyle: "none", padding: 0 }}>
-            {displayEntries.map((e) => (
-              <li
-                key={e.id}
-                style={{
-                  border: "1px solid #ddd",
-                  borderRadius: "4px",
-                  padding: "0.75rem",
-                  marginBottom: "0.5rem",
-                }}
-              >
-                <div
+            {displayEntries.map((e) => {
+              const linkedTasks = linkedTasksByStandup[e.id] || [];
+              const linkedLoading = !!loadingLinkedTasksByStandup[e.id];
+
+              return (
+                <li
+                  key={e.id}
                   style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "baseline",
-                    gap: "0.5rem",
+                    border: "1px solid #ddd",
+                    borderRadius: "4px",
+                    padding: "0.75rem",
+                    marginBottom: "0.5rem",
                   }}
                 >
-                  <div>
-                    <strong>{e.name}</strong>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "baseline",
+                      gap: "0.5rem",
+                    }}
+                  >
+                    <div>
+                      <strong>{e.name}</strong>
+                    </div>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.5rem",
+                      }}
+                    >
+                      <span style={{ fontSize: "0.8rem", opacity: 0.7 }}>
+                        {new Date(e.created_at).toLocaleTimeString()}
+                      </span>
+                      <button
+                        onClick={() => setConvertTarget(e)}
+                        style={{ fontSize: "0.75rem" }}
+                        type="button"
+                      >
+                        Convert to Tasks
+                      </button>
+                      {(isAdmin || e.name === loggedInName) && (
+                        <>
+                          <button
+                            onClick={() => handleEditStandup(e)}
+                            style={{ fontSize: "0.75rem" }}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleDeleteStandup(e.id)}
+                            style={{ fontSize: "0.75rem" }}
+                          >
+                            Delete
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                    <span style={{ fontSize: "0.8rem", opacity: 0.7 }}>
-                      {new Date(e.created_at).toLocaleTimeString()}
-                    </span>
-                    {(isAdmin || e.name === loggedInName) && (
-                      <>
-                        <button
-                          onClick={() => handleEditStandup(e)}
-                          style={{ fontSize: "0.75rem" }}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDeleteStandup(e.id)}
-                          style={{ fontSize: "0.75rem" }}
-                        >
-                          Delete
-                        </button>
-                      </>
+
+                  {e.project_name && (
+                    <div style={{ fontSize: "0.85rem", opacity: 0.8 }}>
+                      Project: <strong>{e.project_name}</strong>
+                    </div>
+                  )}
+
+                  {e.yesterday && (
+                    <p style={{ marginTop: "0.5rem" }}>
+                      <strong>Yesterday:</strong> {e.yesterday}
+                    </p>
+                  )}
+                  <p>
+                    <strong>Today:</strong> {e.today}
+                  </p>
+                  {e.blockers && (
+                    <p>
+                      <strong>Blockers:</strong> {e.blockers}
+                    </p>
+                  )}
+
+                  <div
+                    style={{
+                      marginTop: "0.5rem",
+                      fontSize: "0.85rem",
+                      borderTop: "1px dashed #e5e7eb",
+                      paddingTop: "0.5rem",
+                    }}
+                  >
+                    <strong>Linked Tasks:</strong>{" "}
+                    {linkedLoading ? (
+                      <span>Loading...</span>
+                    ) : linkedTasks.length === 0 ? (
+                      <span>None yet.</span>
+                    ) : (
+                      <ul
+                        style={{
+                          listStyle: "none",
+                          padding: 0,
+                          marginTop: "0.35rem",
+                        }}
+                      >
+                        {linkedTasks.map((t) => (
+                          <li
+                            key={t.id}
+                            style={{ marginBottom: "0.25rem" }}
+                          >
+                            <span
+                              style={{
+                                fontSize: "0.75rem",
+                                padding: "0.1rem 0.4rem",
+                                borderRadius: "999px",
+                                backgroundColor:
+                                  t.status === "done"
+                                    ? "#16a34a"
+                                    : t.status === "in_progress"
+                                    ? "#2563eb"
+                                    : t.status === "blocked"
+                                    ? "#b91c1c"
+                                    : "#6b7280",
+                                color: "#fff",
+                                marginRight: "0.35rem",
+                              }}
+                            >
+                              {t.status}
+                            </span>
+                            <strong>{t.title}</strong>
+                            {t.project_name && (
+                              <span style={{ opacity: 0.8 }}>
+                                {" "}
+                                [{t.project_name}]
+                              </span>
+                            )}
+                            {t.due_date && (
+                              <span style={{ marginLeft: "0.35rem", opacity: 0.8 }}>
+                                Due:{" "}
+                                {new Date(t.due_date).toLocaleDateString()}
+                              </span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
                     )}
                   </div>
-                </div>
-
-                {e.project_name && (
-                  <div style={{ fontSize: "0.85rem", opacity: 0.8 }}>
-                    Project: <strong>{e.project_name}</strong>
-                  </div>
-                )}
-
-                {e.yesterday && (
-                  <p style={{ marginTop: "0.5rem" }}>
-                    <strong>Yesterday:</strong> {e.yesterday}
-                  </p>
-                )}
-                <p>
-                  <strong>Today:</strong> {e.today}
-                </p>
-                {e.blockers && (
-                  <p>
-                    <strong>Blockers:</strong> {e.blockers}
-                  </p>
-                )}
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>
 
-
       <div style={{ marginTop: "2rem" }}>
         <h2>My Tasks</h2>
         <p style={{ fontSize: "0.85rem", opacity: 0.8 }}>
-          Tasks are owned by your account and can optionally be linked to a project.
-          This panel shows only <strong>your</strong> active tasks.
+          Tasks are owned by your account and can optionally be linked to a
+          project. This panel shows only <strong>your</strong> active tasks.
         </p>
 
         <div
@@ -816,16 +949,26 @@ const StandupPage: React.FC = () => {
                       </span>
                     )}
                     {t.description && (
-                      <div style={{ marginTop: "0.25rem" }}>{t.description}</div>
+                      <div style={{ marginTop: "0.25rem" }}>
+                        {t.description}
+                      </div>
                     )}
                   </div>
-                  <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: "0.5rem",
+                      alignItems: "center",
+                    }}
+                  >
                     <label style={{ fontSize: "0.8rem" }}>
                       Status:&nbsp;
                       <select
                         value={t.status}
                         onChange={(e) =>
-                          handleUpdateTask(t.id, { status: e.target.value as Task["status"] })
+                          handleUpdateTask(t.id, {
+                            status: e.target.value as Task["status"],
+                          })
                         }
                       >
                         <option value="todo">Todo</option>
@@ -843,7 +986,10 @@ const StandupPage: React.FC = () => {
                         value={t.progress}
                         onChange={(e) =>
                           handleUpdateTask(t.id, {
-                            progress: Math.min(100, Math.max(0, Number(e.target.value) || 0)),
+                            progress: Math.min(
+                              100,
+                              Math.max(0, Number(e.target.value) || 0)
+                            ),
                           })
                         }
                         style={{ width: "3rem" }}
@@ -896,6 +1042,25 @@ const StandupPage: React.FC = () => {
           </div>
         )}
       </div>
+
+      {convertTarget && (
+        <StandupTaskConvertModal
+          standup={convertTarget}
+          projects={projects}
+          backendBase={backendBase}
+          onClose={() => setConvertTarget(null)}
+          onConverted={(createdCount) => {
+            // Refresh linked tasks + "My Tasks" after conversion
+            loadLinkedTasksForStandup(convertTarget.id);
+            loadMyTasks(taskFilterProjectId);
+            setConvertTarget(null);
+            showToast(
+              `Created ${createdCount} task(s) from standup.`,
+              "success"
+            );
+          }}
+        />
+      )}
     </div>
   );
 };
