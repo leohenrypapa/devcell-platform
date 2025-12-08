@@ -34,15 +34,52 @@ export type ProjectMemberCreatePayload = {
   role: ProjectMemberRole;
 };
 
-/**
- * Fetch all projects (global view, no auth required).
- */
-export async function fetchAllProjects(): Promise<Project[]> {
-  const res = await fetch(`${BACKEND_BASE}/api/projects`);
-  if (!res.ok) {
-    throw new Error(`Failed to fetch projects (HTTP ${res.status})`);
+const buildHeaders = (token: string, withJson = true): HeadersInit => {
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${token}`,
+  };
+  if (withJson) {
+    headers["Content-Type"] = "application/json";
   }
-  const data = (await res.json()) as ProjectListResponse;
+  return headers;
+};
+
+const handleJson = async <T>(res: Response, defaultError: string): Promise<T> => {
+  let data: unknown = null;
+
+  try {
+    data = await res.json();
+  } catch {
+    // ignore JSON parse errors; we'll fall back to default message
+  }
+
+  if (!res.ok) {
+    let message = defaultError;
+    if (
+      data &&
+      typeof data === "object" &&
+      "detail" in data &&
+      typeof (data as any).detail === "string"
+    ) {
+      message = (data as any).detail;
+    }
+    throw new Error(message);
+  }
+
+  return data as T;
+};
+
+/**
+ * Fetch all projects. Requires authentication.
+ */
+export async function fetchAllProjects(token: string): Promise<Project[]> {
+  const res = await fetch(`${BACKEND_BASE}/api/projects`, {
+    headers: buildHeaders(token, false),
+  });
+  const data = await handleJson<ProjectListResponse>(
+    res,
+    "Failed to fetch projects."
+  );
   return data.items ?? [];
 }
 
@@ -52,14 +89,12 @@ export async function fetchAllProjects(): Promise<Project[]> {
  */
 export async function fetchMyProjects(token: string): Promise<Project[]> {
   const res = await fetch(`${BACKEND_BASE}/api/projects/mine`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
+    headers: buildHeaders(token, false),
   });
-  if (!res.ok) {
-    throw new Error(`Failed to fetch my projects (HTTP ${res.status})`);
-  }
-  const data = (await res.json()) as ProjectListResponse;
+  const data = await handleJson<ProjectListResponse>(
+    res,
+    "Failed to fetch my projects."
+  );
   return data.items ?? [];
 }
 
@@ -73,17 +108,14 @@ export async function getProjectMembers(
   const res = await fetch(
     `${BACKEND_BASE}/api/projects/${projectId}/members`,
     {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+      headers: buildHeaders(token, false),
     }
   );
 
-  if (!res.ok) {
-    throw new Error(`Failed to fetch project members (HTTP ${res.status})`);
-  }
-
-  const data = (await res.json()) as ProjectMemberListResponse;
+  const data = await handleJson<ProjectMemberListResponse>(
+    res,
+    "Failed to fetch project members."
+  );
   return data.items ?? [];
 }
 
@@ -97,18 +129,14 @@ export async function addOrUpdateProjectMember(
 ): Promise<ProjectMember> {
   const res = await fetch(`${BACKEND_BASE}/api/projects/${projectId}/members`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
+    headers: buildHeaders(token, true),
     body: JSON.stringify(payload),
   });
 
-  if (!res.ok) {
-    throw new Error(`Failed to upsert project member (HTTP ${res.status})`);
-  }
-
-  const data = (await res.json()) as ProjectMember;
+  const data = await handleJson<ProjectMember>(
+    res,
+    "Failed to upsert project member."
+  );
   return data;
 }
 
@@ -126,13 +154,9 @@ export async function deleteProjectMember(
     )}`,
     {
       method: "DELETE",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+      headers: buildHeaders(token, false),
     }
   );
 
-  if (!res.ok) {
-    throw new Error(`Failed to remove project member (HTTP ${res.status})`);
-  }
+  await handleJson<void>(res, "Failed to remove project member.");
 }

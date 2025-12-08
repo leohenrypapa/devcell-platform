@@ -1,8 +1,8 @@
 # Auth API
 
 The Auth API handles authentication and basic user management for the DevCell
-Platform backend. It issues JWT access tokens and exposes a minimal set of user
-utility endpoints used by the frontend.
+Platform backend. It issues **opaque bearer tokens** backed by a `sessions`
+table and exposes user/profile/admin utilities.
 
 All routes are served from the `auth.py` router and, unless stated otherwise,
 accept and return JSON.
@@ -13,120 +13,58 @@ accept and return JSON.
 
 ```text
 /api/auth
-```
+````
 
 ---
 
 # 🔐 Authentication Model
 
-- DevCell uses **JWT bearer tokens** for API authentication.
-- After login, the client stores the token (e.g., in memory or localStorage)
-  and sends it via `Authorization: Bearer <token>` for all subsequent API calls.
-- Passwords are hashed server-side; plaintext passwords are never stored.
+* DevCell uses **random opaque Bearer tokens**, not JWTs.
+
+* After login or registration, the backend creates a row in the `sessions`
+  table and returns a token.
+
+* The client stores the token (e.g. in memory or `localStorage`) and sends it
+  via:
+
+  ```http
+  Authorization: Bearer <token>
+  ```
+
+* Tokens have a **fixed lifetime** (default: 8 hours) based on
+  `sessions.created_at`. Expired tokens are rejected and removed.
+
+* Passwords are **hashed server-side** (demo SHA-256; for production use
+  bcrypt/argon2).
 
 ---
 
 # 📚 Endpoints
 
----
+## 1. Register
 
-## 1. Login
+### `POST /api/auth/register`
 
-### `POST /api/auth/login`
+Self-register a new user.
 
-Authenticates a user and returns an access token.
+Behavior:
 
-#### Request Body
-
-```json
-{
-  "username": "alice",
-  "password": "correct horse battery staple"
-}
-```
-
-#### Response
-
-```json
-{
-  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "token_type": "bearer",
-  "username": "alice",
-  "role": "user"
-}
-```
-
-If authentication fails:
-
-- `401 Unauthorized` with an error message.
-
----
-
-## 2. Get Current User
-
-### `GET /api/auth/me`
-
-Returns basic information about the authenticated user.
-
-#### Headers
-
-```http
-Authorization: Bearer <access_token>
-```
-
-#### Response
-
-```json
-{
-  "username": "alice",
-  "role": "user",
-  "created_at": "2025-12-01T10:00:00Z",
-  "is_active": true
-}
-```
-
-Used by the frontend to:
-
-- hydrate `AuthContext`
-- determine role-based UI features (admin vs user)
-
----
-
-## 3. Refresh / Validate Token (Optional)
-
-> If implemented in your backend, this route is used to validate or refresh
-> tokens. If your codebase does not include it, this section can be omitted.
-
-### `GET /api/auth/refresh` (or similar)
-
-- Validates current token
-- May return a new token or simply confirm validity
-
-Example response:
-
-```json
-{
-  "valid": true,
-  "username": "alice",
-  "role": "user"
-}
-```
-
----
-
-## 4. Admin: Create User (Optional)
-
-If enabled, admins can create new users via an API endpoint.
-
-### `POST /api/auth/users`
+* If this is the **first user**, they become `admin`.
+* Otherwise, new users are created with `role="user"` (the request `role` is
+  ignored).
+* Returns a `LoginResponse` so the client can auto-login.
 
 #### Request
 
 ```json
 {
-  "username": "bob",
-  "password": "initial-password",
-  "role": "user"
+  "username": "alice",
+  "password": "correct-horse",
+  "display_name": "CPT You",
+  "job_title": "Dev Cell Lead",
+  "team_name": "CSD-D Dev Cell",
+  "rank": "CPT",
+  "skills": "Python, FastAPI"
 }
 ```
 
@@ -134,23 +72,149 @@ If enabled, admins can create new users via an API endpoint.
 
 ```json
 {
-  "username": "bob",
-  "role": "user",
-  "created_at": "2025-12-08T12:00:00Z"
+  "access_token": "<opaque-token>",
+  "token_type": "bearer",
+  "user": {
+    "id": 1,
+    "username": "alice",
+    "role": "admin",
+    "is_active": true,
+    "display_name": "CPT You",
+    "created_at": "2025-12-01T10:00:00"
+  }
 }
 ```
 
-Permission:
+---
 
-- Only `admin`-role users can call this endpoint.
+## 2. Login
+
+### `POST /api/auth/login`
+
+Authenticate a user and create a session.
+
+#### Request
+
+```json
+{
+  "username": "alice",
+  "password": "correct-horse"
+}
+```
+
+#### Response
+
+```json
+{
+  "access_token": "<opaque-token>",
+  "token_type": "bearer",
+  "user": {
+    "id": 1,
+    "username": "alice",
+    "role": "user",
+    "is_active": true,
+    "created_at": "2025-12-01T10:00:00"
+  }
+}
+```
+
+If authentication fails:
+
+* `401 Unauthorized` with `{"detail": "Invalid username or password"}`.
 
 ---
 
-## 5. Change Password (Optional)
+## 3. Logout
 
-### `POST /api/auth/change_password`
+### `POST /api/auth/logout`
 
-Allows a user to change their password.
+Invalidate the **current** session token.
+
+#### Headers
+
+```http
+Authorization: Bearer <token>
+```
+
+#### Response
+
+```json
+{
+  "detail": "Logged out successfully"
+}
+```
+
+Implementation:
+
+* Deletes the token row from the `sessions` table.
+* Idempotent: calling again is safe (no session found).
+
+---
+
+## 4. Get Current User
+
+### `GET /api/auth/me`
+
+Return the authenticated user.
+
+#### Headers
+
+```http
+Authorization: Bearer <token>
+```
+
+#### Response
+
+```json
+{
+  "id": 1,
+  "username": "alice",
+  "role": "user",
+  "is_active": true,
+  "display_name": "CPT You",
+  "job_title": "Dev Cell Lead",
+  "team_name": "CSD-D Dev Cell",
+  "rank": "CPT",
+  "skills": "Python, FastAPI",
+  "created_at": "2025-12-01T10:00:00"
+}
+```
+
+Notes:
+
+* Inactive users (`is_active=false`) are rejected with `401 User account is inactive`.
+
+---
+
+## 5. Update Own Profile
+
+### `PUT /api/auth/me`
+
+Update your own profile fields.
+
+#### Request
+
+```json
+{
+  "display_name": "CPT You",
+  "job_title": "Dev Cell Lead",
+  "team_name": "CSD-D Dev Cell",
+  "rank": "CPT",
+  "skills": "Python, FastAPI, malware dev"
+}
+```
+
+#### Response
+
+Returns the updated `UserPublic` as in `/me`.
+
+---
+
+## 6. Change Password
+
+### `PUT /api/auth/change_password`
+
+Change your own password.
 
 #### Request
 
@@ -165,66 +229,145 @@ Allows a user to change their password.
 
 ```json
 {
-  "success": true
+  "detail": "Password changed successfully"
 }
 ```
 
-If `old_password` is incorrect, returns `401` or `400` depending on
-implementation.
+If the old password is wrong:
+
+```json
+{
+  "detail": "Old password is incorrect"
+}
+```
 
 ---
 
-# 🔐 Permission & Role Summary
+## 7. Admin: List Users
 
-- **Roles**: `user`, `admin`
-- `admin` can:
-  - manage users (if the create-user endpoint is enabled)
-  - see additional admin UI in the frontend
-- `user` can:
-  - log in
-  - call `/me`
-  - access non-admin APIs according to project/permissions model
+### `GET /api/auth/users`
 
-Auth API itself does **not** expose project-level permissions. Those are enforced
-in other modules (Tasks, Projects, Training, Dashboard, etc.).
+List all users.
+
+* **Admin only** (enforced via `require_admin`).
+
+#### Response
+
+```json
+{
+  "items": [
+    {
+      "id": 1,
+      "username": "alice",
+      "role": "admin",
+      "is_active": true,
+      "display_name": "CPT You",
+      "created_at": "..."
+    },
+    {
+      "id": 2,
+      "username": "bob",
+      "role": "user",
+      "is_active": true,
+      "display_name": "SSG Kim",
+      "created_at": "..."
+    }
+  ]
+}
+```
+
+---
+
+## 8. Admin: Update User
+
+### `PUT /api/auth/users/{user_id}`
+
+Admin-only update of another user’s fields.
+
+* Can change profile fields: `display_name`, `job_title`, `team_name`,
+  `rank`, `skills`
+* Can change `role` between `"user"` and `"admin"`
+* Can toggle `is_active`
+
+**Safeguards:**
+
+* Cannot remove or deactivate the **last active admin**; request will fail
+  with `400` and explanatory message.
+
+#### Request
+
+```json
+{
+  "display_name": "DevCell Admin",
+  "role": "admin",
+  "is_active": true
+}
+```
+
+---
+
+## 9. Admin: Create User
+
+### `POST /api/auth/admin/create_user`
+
+Create a new user as admin.
+
+#### Request
+
+```json
+{
+  "username": "bob",
+  "password": "initial-pass",
+  "role": "user",
+  "display_name": "SSG Kim",
+  "job_title": "Malware Dev",
+  "team_name": "CSD-D Dev Cell",
+  "rank": "SSG",
+  "skills": "Python, RE"
+}
+```
+
+#### Response
+
+Returns the created `UserPublic`.
+
+---
+
+# 🔐 Role & Permission Summary
+
+* **Roles**: `"user"`, `"admin"`.
+* `admin` can:
+
+  * List all users
+  * Create new users
+  * Update other users’ roles and active state
+* `user` can:
+
+  * login / logout
+  * update own profile
+  * change own password
+* Project-level permissions (`owner/member/viewer`) are handled in the
+  **Projects API** and other modules.
 
 ---
 
 # ⚠️ Error Responses
 
-| Code | Meaning                           |
-|------|-----------------------------------|
-| `400`| Malformed request body           |
-| `401`| Invalid credentials or token     |
-| `403`| Not enough privileges (admin)    |
-| `422`| Validation error                 |
+| Code | Meaning                                    |
+| ---- | ------------------------------------------ |
+| 400  | Bad request / validation / last-admin rule |
+| 401  | Invalid credentials or token               |
+| 403  | Not enough privileges (admin-only)         |
+| 404  | Target user not found                      |
+| 422  | Validation error                           |
 
-Error objects typically include a JSON body:
+Error objects typically look like:
 
 ```json
 {
   "detail": "Invalid username or password"
 }
 ```
-
----
-
-# 🧪 Example Login Flow
-
-1. Frontend posts credentials to `/api/auth/login`.
-2. Backend verifies the password and issues a JWT.
-3. Frontend stores token.
-4. All subsequent API calls use `Authorization: Bearer <token>`.
-5. Frontend calls `/api/auth/me` to fetch user profile and role.
-
----
-
-# 📚 Related Documents
-
-- Permissions Module → `../modules/permissions.md`
-- Tasks API → `tasks_api.md`
-- Projects API → `projects_api.md`
-- Dashboard API → `dashboard_api.md`
 
 ---
 

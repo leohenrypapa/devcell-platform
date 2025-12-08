@@ -8,6 +8,26 @@
 
 ### Fixed
 -
+---
+
+## [0.6.4] - 2025-12-08
+
+### Added
+
+* None
+
+### Changed
+
+* Updated `projects` API client (`lib/projects.ts`) to require a token argument and consistently attach `Authorization: Bearer <token>` headers.
+* Updated `ProjectsPage.tsx` to load projects via `listProjects(token)` and handle authenticated fetch flow.
+* Standardized header builder (`buildHeaders`) usage across project-related API calls for consistency and correctness.
+
+### Fixed
+
+* Fixed `401 Unauthorized` errors for `/api/projects` and `/api/auth/me` caused by missing `Authorization` headers in frontend requests.
+* Resolved frontend auth state mismatch where users appeared logged in but protected endpoints failed due to missing token propagation.
+
+---
 
 ## [0.6.3] - 2025-12-08
 

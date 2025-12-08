@@ -69,15 +69,16 @@ const ProjectsPage: React.FC = () => {
     setError(null);
 
     try {
+      if (!token) {
+        throw new Error("Authentication required to load projects.");
+      }
+
       let data: Project[];
 
       if (mine) {
-        if (!token) {
-          throw new Error("Authentication required to load your projects.");
-        }
         data = await fetchMyProjects(token);
       } else {
-        data = await fetchAllProjects();
+        data = await fetchAllProjects(token);
       }
 
       setProjects(data);

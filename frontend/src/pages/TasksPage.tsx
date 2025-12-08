@@ -176,10 +176,18 @@ const TasksPage: React.FC = () => {
   }, []);
 
   const loadProjects = async () => {
+    if (!token) {
+      setProjects([]);
+      return;
+    }
     setLoadingProjects(true);
     setProjectsError(null);
     try {
-      const res = await fetch(`${backendBase}/api/projects`);
+      const res = await fetch(`${backendBase}/api/projects`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}`);
       }
@@ -243,7 +251,7 @@ const TasksPage: React.FC = () => {
 
   useEffect(() => {
     loadProjects();
-  }, [backendBase]);
+  }, [backendBase, token]);
 
   useEffect(() => {
     if (isAuthenticated) {

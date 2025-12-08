@@ -1,3 +1,4 @@
+# backend/app/services/auth_service.py
 from typing import Optional
 
 from fastapi import Depends, HTTPException, status
@@ -6,7 +7,8 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from app.schemas.user import UserPublic
 from app.services.user_store import get_user_by_token
 
-# We keep auto_error=False so we can control the 401 message ourselves
+# HTTP Bearer authentication.
+# We use opaque random tokens stored in the sessions table (not JWTs).
 security = HTTPBearer(auto_error=False)
 
 
@@ -35,7 +37,7 @@ async def get_current_user(
             detail="Invalid or expired token",
         )
 
-    # New: respect is_active flag on the user
+    # Respect is_active flag on the user
     if hasattr(user, "is_active") and not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

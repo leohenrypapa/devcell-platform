@@ -165,9 +165,17 @@ const StandupPage: React.FC = () => {
   };
 
   const loadProjects = async () => {
+    if (!token) {
+      setProjects([]);
+      return;
+    }
     setLoadingProjects(true);
     try {
-      const res = await fetch(`${backendBase}/api/projects`);
+      const res = await fetch(`${backendBase}/api/projects`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data: ProjectListResponse = await res.json();
       setProjects(data.items || []);
@@ -273,7 +281,7 @@ const StandupPage: React.FC = () => {
     loadProjects();
     loadMyTasks(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [token]);
 
   const handleDateChange = (value: string) => {
     setSelectedDate(value);

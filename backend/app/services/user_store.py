@@ -1,6 +1,7 @@
+# backend/app/services/user_store.py
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional, Tuple, List
 import hashlib
 import secrets
@@ -10,6 +11,9 @@ from app.schemas.user import UserPublic
 
 # NOTE: for internal tool only; for production use a better password hashing scheme.
 PASSWORD_SALT = "devcell-demo-salt"
+
+# Session lifetime (hours). Tokens older than this are treated as expired.
+SESSION_LIFETIME_HOURS = 8
 
 
 def _hash_password(raw_password: str) -> str:
@@ -25,7 +29,6 @@ def _row_to_user(row) -> UserPublic:
       display_name, job_title, team_name, rank, skills, is_active
     New columns are allowed to be NULL.
     """
-    # sqlite3.Row -> dict so we can safely use .get()
     data = dict(row)
 
     return UserPublic(
@@ -164,7 +167,6 @@ def verify_user_credentials(username: str, raw_password: str) -> Optional[UserPu
     if row is None:
         return None
 
-    # row is sqlite3.Row; it has .keys()
     if "is_active" in row.keys() and not row["is_active"]:
         # user exists but is marked inactive
         return None
@@ -173,6 +175,9 @@ def verify_user_credentials(username: str, raw_password: str) -> Optional[UserPu
 
 
 def create_session(user_id: int) -> str:
+    """
+    Create a new random session token for a user and store it in the sessions table.
+    """
     token = secrets.token_urlsafe(32)
     created_at = datetime.now().isoformat()
 
@@ -188,6 +193,17 @@ def create_session(user_id: int) -> str:
     conn.commit()
     conn.close()
     return token
+
+
+def delete_session(token: str) -> None:
+    """
+    Delete a single session by its token. Used by /auth/logout.
+    """
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM sessions WHERE token = ?", (token,))
+    conn.commit()
+    conn.close()
 
 
 def create_user_and_session(
@@ -222,11 +238,21 @@ def create_user_and_session(
 
 
 def get_user_by_token(token: str) -> Optional[UserPublic]:
+    """
+    Lookup a user from a session token.
+
+    - Joins sessions and users.
+    - Enforces a simple max lifetime based on sessions.created_at.
+    - Returns None if token is missing or expired.
+    """
+    now = datetime.now()
+    lifetime = timedelta(hours=SESSION_LIFETIME_HOURS)
+
     conn = get_connection()
     cur = conn.cursor()
     cur.execute(
         """
-        SELECT u.*
+        SELECT u.*, s.created_at AS session_created_at
         FROM sessions s
         JOIN users u ON u.id = s.user_id
         WHERE s.token = ?
@@ -234,9 +260,28 @@ def get_user_by_token(token: str) -> Optional[UserPublic]:
         (token,),
     )
     row = cur.fetchone()
-    conn.close()
+
     if row is None:
+        conn.close()
         return None
+
+    data = dict(row)
+    session_created_str = data.get("session_created_at")
+    try:
+        session_created = datetime.fromisoformat(session_created_str)
+    except Exception:
+        # If parsing fails, treat token as invalid.
+        conn.close()
+        return None
+
+    if now - session_created > lifetime:
+        # Token expired: clean up and reject.
+        cur.execute("DELETE FROM sessions WHERE token = ?", (token,))
+        conn.commit()
+        conn.close()
+        return None
+
+    conn.close()
     return _row_to_user(row)
 
 
@@ -334,7 +379,12 @@ def admin_update_user(
 ) -> Optional[UserPublic]:
     """
     Admin-only update of another user's fields (including role and is_active).
-    Returns updated UserPublic, or None if user_id does not exist.
+
+    - Prevents deactivating or demoting the last active admin account.
+    - Returns updated UserPublic, or None if user_id does not exist.
+
+    Raises:
+        ValueError: if attempting to remove the last active admin.
     """
     conn = get_connection()
     cur = conn.cursor()
@@ -344,8 +394,34 @@ def admin_update_user(
         conn.close()
         return None
 
+    current_role = row["role"]
+    current_is_active = bool(row.get("is_active", 1))
+
+    is_current_admin = current_role == "admin" and current_is_active
+
+    # Determine if this update would remove admin status or deactivate the user.
+    will_no_longer_be_admin = False
+    if role is not None and role != "admin":
+        will_no_longer_be_admin = True
+    if is_active is not None and not is_active:
+        will_no_longer_be_admin = True
+
+    if is_current_admin and will_no_longer_be_admin:
+        # Check how many active admins exist.
+        cur.execute(
+            "SELECT COUNT(*) AS c FROM users WHERE role = 'admin' AND is_active = 1"
+        )
+        count_row = cur.fetchone()
+        active_admins = int(count_row["c"] if count_row else 0)
+
+        if active_admins <= 1:
+            conn.close()
+            raise ValueError(
+                "Cannot remove or deactivate the last active admin user."
+            )
+
     fields = []
-    params = []
+    params: List[object] = []
 
     if display_name is not None:
         fields.append("display_name = ?")
@@ -401,7 +477,6 @@ def ensure_default_admin() -> None:
 
     This is intended for dev/demo/reset scenarios only.
     """
-    # First, check if the users table has any admin row.
     try:
         conn = get_connection()
         cur = conn.cursor()
@@ -415,10 +490,8 @@ def ensure_default_admin() -> None:
 
     count = int(row["c"] if row else 0)
     if count > 0:
-        # Already have at least one admin, nothing to do.
         return
 
-    # No admins found -> create the default admin.
     try:
         create_user(
             username="admin",

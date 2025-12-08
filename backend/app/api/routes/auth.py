@@ -1,4 +1,6 @@
+# backend/app/api/routes/auth.py
 from fastapi import APIRouter, HTTPException, Depends, status
+from fastapi.security import HTTPAuthorizationCredentials
 
 from app.schemas.user import (
     UserCreate,
@@ -19,12 +21,13 @@ from app.services.user_store import (
     verify_user_credentials,
     create_session,
     list_users,
-    # new store functions you will implement
+    # new store functions
     update_user_profile,
     change_user_password,
     admin_update_user,
+    delete_session,
 )
-from app.services.auth_service import get_current_user, require_admin
+from app.services.auth_service import get_current_user, require_admin, security
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -59,8 +62,6 @@ def register(payload: UserCreate):
     else:
         role = "user"
 
-    # create_user hashes the password and stores the user.
-    # We pass profile fields explicitly here.
     user = create_user(
         username=payload.username,
         raw_password=payload.password,
@@ -72,7 +73,6 @@ def register(payload: UserCreate):
         skills=payload.skills,
     )
 
-    # Immediately create a session so we can return an access token
     token = create_session(user.id)
 
     return LoginResponse(
@@ -101,6 +101,28 @@ def login(payload: LoginRequest):
     return LoginResponse(access_token=token, user=user)
 
 
+@router.post("/logout")
+def logout(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    current_user: UserPublic = Depends(get_current_user),
+):
+    """
+    Logout the current session.
+
+    - Requires a valid Bearer token.
+    - Deletes the session row for this token.
+    """
+    if credentials is None or credentials.scheme.lower() != "bearer":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+        )
+
+    token = credentials.credentials
+    delete_session(token)
+    return {"detail": "Logged out successfully"}
+
+
 @router.get("/me", response_model=UserPublic)
 def me(current_user: UserPublic = Depends(get_current_user)):
     """
@@ -115,12 +137,7 @@ def update_me(
     current_user: UserPublic = Depends(get_current_user),
 ):
     """
-    Update the current user's own profile fields:
-    - display_name
-    - job_title
-    - team_name
-    - rank
-    - skills
+    Update the current user's own profile fields.
     """
     updated = update_user_profile(
         user_id=current_user.id,
@@ -184,16 +201,30 @@ def admin_update_user_route(
     - role ('user' or 'admin')
     - is_active (True/False)
     """
-    updated = admin_update_user(
-        user_id=user_id,
-        display_name=payload.display_name,
-        job_title=payload.job_title,
-        team_name=payload.team_name,
-        rank=payload.rank,
-        skills=payload.skills,
-        role=payload.role,
-        is_active=payload.is_active,
-    )
+    if payload.role is not None and payload.role not in ("user", "admin"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Role must be 'user' or 'admin' if provided",
+        )
+
+    try:
+        updated = admin_update_user(
+            user_id=user_id,
+            display_name=payload.display_name,
+            job_title=payload.job_title,
+            team_name=payload.team_name,
+            rank=payload.rank,
+            skills=payload.skills,
+            role=payload.role,
+            is_active=payload.is_active,
+        )
+    except ValueError as exc:
+        # e.g., attempting to remove the last active admin
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
     if updated is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

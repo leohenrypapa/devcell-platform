@@ -144,11 +144,20 @@ const DashboardPage: React.FC = () => {
 
   // 🔹 All projects
   const loadProjects = async () => {
+    if (!token) {
+      setProjects([]);
+      setMyProjects([]);
+      return;
+    }
     setProjectsLoading(true);
     setProjectsError(null);
 
     try {
-      const res = await fetch(`${backendBase}/api/projects`);
+      const res = await fetch(`${backendBase}/api/projects`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data: ProjectListResponse = await res.json();
       const items = data.items || [];

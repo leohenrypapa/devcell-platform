@@ -124,32 +124,36 @@ const AdminPage: React.FC = () => {
 
   const handleNewUserChange = (
     e: React.ChangeEvent<
-      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
     >,
   ) => {
     const { name, value } = e.target;
-    setNewUser((prev) => ({ ...prev, [name]: value }));
+    setNewUser((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
   };
 
-  const handleCreateUser = async (e: React.FormEvent<HTMLFormElement>) => {
+
+  const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!token) return;
 
     resetMessages();
     setCreating(true);
 
-    try {
-      const payload: AdminCreateUserPayload = {
-        username: newUser.username.trim(),
-        password: newUser.password,
-        role: (newUser.role as "user" | "admin") || "user",
-        display_name: newUser.display_name || undefined,
-        job_title: newUser.job_title || undefined,
-        team_name: newUser.team_name || undefined,
-        rank: newUser.rank || undefined,
-        skills: newUser.skills || undefined,
-      };
+    const payload: AdminCreateUserPayload = {
+      username: newUser.username,
+      password: newUser.password,
+      role: newUser.role === "admin" ? "admin" : "user",
+      display_name: newUser.display_name || null,
+      job_title: newUser.job_title || null,
+      team_name: newUser.team_name || null,
+      rank: newUser.rank || null,
+      skills: newUser.skills || null,
+    };
 
+    try {
       await adminCreateUser(token, payload);
       setInfo("User created.");
       setNewUser({
@@ -172,7 +176,7 @@ const AdminPage: React.FC = () => {
     }
   };
 
-  const startEditUser = (u: AdminUser) => {
+  const handleStartEdit = (u: AdminUser) => {
     setEditUserId(u.id);
     setEditForm({
       display_name: u.display_name ?? "",
@@ -184,494 +188,288 @@ const AdminPage: React.FC = () => {
     resetMessages();
   };
 
-  const cancelEditUser = () => {
-    setEditUserId(null);
-    setEditForm({
-      display_name: "",
-      job_title: "",
-      team_name: "",
-      rank: "",
-      skills: "",
-    });
-  };
-
   const handleEditChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => {
     const { name, value } = e.target;
-    setEditForm((prev) => ({ ...prev, [name]: value }));
+    setEditForm((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
   };
 
-  const handleSaveEditUser = async (u: AdminUser) => {
-    const patch: AdminUpdateUserPayload = {
-      display_name: editForm.display_name || undefined,
-      job_title: editForm.job_title || undefined,
-      team_name: editForm.team_name || undefined,
-      rank: editForm.rank || undefined,
-      skills: editForm.skills || undefined,
-    };
-
-    await updateUser(u.id, patch);
+  const handleSaveEdit = async (u: AdminUser) => {
+    await updateUser(u.id, {
+      display_name: editForm.display_name,
+      job_title: editForm.job_title,
+      team_name: editForm.team_name,
+      rank: editForm.rank,
+      skills: editForm.skills,
+    });
     setEditUserId(null);
   };
 
+  // Basic access control UX on the page itself
+  if (!user) {
+    return (
+      <div style={{ maxWidth: 600, margin: "2rem auto" }}>
+        <h1>Admin</h1>
+        <p>You must be signed in to view this page.</p>
+      </div>
+    );
+  }
+
   if (!isAdmin) {
     return (
-      <div style={{ padding: "1.5rem" }}>
+      <div style={{ maxWidth: 600, margin: "2rem auto" }}>
         <h1>Admin</h1>
-        <p>You must be an admin to view this page.</p>
+        <p>🚫 You do not have permission to view this page.</p>
       </div>
     );
   }
 
   return (
-    <div style={{ padding: "1.5rem" }}>
-      <h1>Admin – User Management</h1>
-
-      <p style={{ marginBottom: "1rem", fontSize: "0.9rem", opacity: 0.8 }}>
-        Manage DevCell accounts: create users, promote/demote admins, and
-        activate/disable accounts. Profile fields help you see who is who
-        across the unit.
+    <div style={{ maxWidth: 1000, margin: "1rem auto" }}>
+      <h1>Admin — User Management</h1>
+      <p style={{ fontSize: "0.9rem", opacity: 0.8 }}>
+        Manage users, roles, and account status. The backend prevents removing
+        or deactivating the last active admin.
       </p>
 
-      {/* Alerts */}
       {error && (
-        <div
-          style={{
-            marginBottom: "0.75rem",
-            padding: "0.75rem 1rem",
-            borderRadius: 4,
-            border: "1px solid #b91c1c",
-            background: "#fee2e2",
-            color: "#7f1d1d",
-          }}
-        >
-          {error}
-        </div>
+        <div style={{ color: "red", marginBottom: "0.75rem" }}>{error}</div>
       )}
       {info && (
-        <div
-          style={{
-            marginBottom: "0.75rem",
-            padding: "0.75rem 1rem",
-            borderRadius: 4,
-            border: "1px solid #166534",
-            background: "#dcfce7",
-            color: "#14532d",
-          }}
-        >
-          {info}
-        </div>
+        <div style={{ color: "green", marginBottom: "0.75rem" }}>{info}</div>
       )}
 
-      {/* Users table */}
-      <div
-        style={{
-          marginBottom: "2rem",
-          padding: "1rem",
-          borderRadius: 6,
-          border: "1px solid #e5e7eb",
-          background: "#f9fafb",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            marginBottom: "0.75rem",
-          }}
-        >
-          <h2 style={{ margin: 0, marginRight: "1rem" }}>Existing Users</h2>
-          <button
-            type="button"
-            onClick={() => void fetchUsers()}
-            disabled={loading}
-          >
-            {loading ? "Refreshing…" : "Refresh"}
-          </button>
-        </div>
-
-        {users.length === 0 && !loading && (
-          <p style={{ fontSize: "0.9rem", opacity: 0.8 }}>No users found.</p>
-        )}
-
-        {users.length > 0 && (
-          <div style={{ overflowX: "auto" }}>
-            <table
-              style={{
-                width: "100%",
-                borderCollapse: "collapse",
-                fontSize: "0.9rem",
-              }}
-            >
-              <thead>
-                <tr>
-                  <th style={{ textAlign: "left", padding: "0.5rem" }}>
-                    Username
-                  </th>
-                  <th style={{ textAlign: "left", padding: "0.5rem" }}>Role</th>
-                  <th style={{ textAlign: "left", padding: "0.5rem" }}>
-                    Active
-                  </th>
-                  <th style={{ textAlign: "left", padding: "0.5rem" }}>
-                    Display Name
-                  </th>
-                  <th style={{ textAlign: "left", padding: "0.5rem" }}>
-                    Job Title
-                  </th>
-                  <th style={{ textAlign: "left", padding: "0.5rem" }}>
-                    Team
-                  </th>
-                  <th style={{ textAlign: "left", padding: "0.5rem" }}>
-                    Rank
-                  </th>
-                  <th style={{ textAlign: "left", padding: "0.5rem" }}>
-                    Skills
-                  </th>
-                  <th style={{ textAlign: "left", padding: "0.5rem" }}>
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.map((u) => {
-                  const editing = editUserId === u.id;
-                  return (
-                    <React.Fragment key={u.id}>
-                      <tr
-                        style={{
-                          borderTop: "1px solid #e5e7eb",
-                          verticalAlign: "top",
-                        }}
-                      >
-                        <td style={{ padding: "0.5rem" }}>
-                          <div>{u.username}</div>
-                          <div
-                            style={{
-                              fontSize: "0.75rem",
-                              opacity: 0.7,
-                              marginTop: "0.15rem",
-                            }}
-                          >
-                            Created:{" "}
-                            {u.created_at
-                              ? new Date(u.created_at).toLocaleString()
-                              : "–"}
-                          </div>
-                        </td>
-                        <td style={{ padding: "0.5rem" }}>{u.role}</td>
-                        <td style={{ padding: "0.5rem" }}>
-                          {u.is_active ? "Yes" : "No"}
-                        </td>
-                        <td style={{ padding: "0.5rem" }}>
-                          {u.display_name || "—"}
-                        </td>
-                        <td style={{ padding: "0.5rem" }}>
-                          {u.job_title || "—"}
-                        </td>
-                        <td style={{ padding: "0.5rem" }}>
-                          {u.team_name || "—"}
-                        </td>
-                        <td style={{ padding: "0.5rem" }}>{u.rank || "—"}</td>
-                        <td style={{ padding: "0.5rem" }}>
-                          {u.skills ? (
-                            <span
-                              style={{
-                                display: "inline-block",
-                                maxWidth: "16rem",
-                                whiteSpace: "nowrap",
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                              }}
-                              title={u.skills}
-                            >
-                              {u.skills}
-                            </span>
-                          ) : (
-                            "—"
-                          )}
-                        </td>
-                        <td style={{ padding: "0.5rem" }}>
-                          <div style={{ display: "flex", gap: "0.25rem" }}>
-                            <button
-                              type="button"
-                              onClick={() => handleToggleRole(u)}
-                              disabled={updating}
-                            >
-                              {u.role === "admin" ? "Make User" : "Make Admin"}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleToggleActive(u)}
-                              disabled={updating}
-                            >
-                              {u.is_active ? "Disable" : "Activate"}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                editing ? cancelEditUser() : startEditUser(u)
-                              }
-                              disabled={updating}
-                            >
-                              {editing ? "Cancel" : "Edit Profile"}
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-
-                      {editing && (
-                        <tr
-                          style={{
-                            borderTop: "1px solid #e5e7eb",
-                            background: "#f3f4f6",
-                          }}
-                        >
-                          <td
-                            colSpan={9}
-                            style={{ padding: "0.75rem 0.5rem 1rem 0.5rem" }}
-                          >
-                            <div
-                              style={{
-                                display: "grid",
-                                gridTemplateColumns:
-                                  "repeat(auto-fit, minmax(180px, 1fr))",
-                                gap: "0.75rem",
-                                marginBottom: "0.75rem",
-                              }}
-                            >
-                              <label style={{ fontSize: "0.85rem" }}>
-                                Display Name
-                                <input
-                                  name="display_name"
-                                  value={editForm.display_name}
-                                  onChange={handleEditChange}
-                                  placeholder="e.g. CPT You"
-                                  style={{ width: "100%", marginTop: "0.25rem" }}
-                                />
-                              </label>
-
-                              <label style={{ fontSize: "0.85rem" }}>
-                                Job Title
-                                <input
-                                  name="job_title"
-                                  value={editForm.job_title}
-                                  onChange={handleEditChange}
-                                  placeholder="e.g. Dev Cell Lead"
-                                  style={{ width: "100%", marginTop: "0.25rem" }}
-                                />
-                              </label>
-
-                              <label style={{ fontSize: "0.85rem" }}>
-                                Team Name
-                                <input
-                                  name="team_name"
-                                  value={editForm.team_name}
-                                  onChange={handleEditChange}
-                                  placeholder="e.g. CSD-D Dev Cell"
-                                  style={{ width: "100%", marginTop: "0.25rem" }}
-                                />
-                              </label>
-
-                              <label style={{ fontSize: "0.85rem" }}>
-                                Rank
-                                <input
-                                  name="rank"
-                                  value={editForm.rank}
-                                  onChange={handleEditChange}
-                                  placeholder="e.g. CPT, SSG, GS-13"
-                                  style={{ width: "100%", marginTop: "0.25rem" }}
-                                />
-                              </label>
-                            </div>
-
-                            <label
-                              style={{
-                                display: "block",
-                                fontSize: "0.85rem",
-                                marginBottom: "0.5rem",
-                              }}
-                            >
-                              Skills
-                              <textarea
-                                name="skills"
-                                value={editForm.skills}
-                                onChange={handleEditChange}
-                                placeholder="Optional: Python, FastAPI, malware dev..."
-                                rows={3}
-                                style={{
-                                  width: "100%",
-                                  marginTop: "0.25rem",
-                                  resize: "vertical",
-                                }}
-                              />
-                            </label>
-
-                            <div style={{ display: "flex", gap: "0.5rem" }}>
-                              <button
-                                type="button"
-                                onClick={() => void handleSaveEditUser(u)}
-                                disabled={updating}
-                              >
-                                {updating ? "Saving…" : "Save Profile"}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={cancelEditUser}
-                                disabled={updating}
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* Create user form */}
-      <div
-        style={{
-          padding: "1rem",
-          borderRadius: 6,
-          border: "1px solid #e5e7eb",
-        }}
-      >
-        <h2 style={{ marginTop: 0 }}>Create New User</h2>
-        <p style={{ fontSize: "0.85rem", opacity: 0.8 }}>
-          Use this for bootstrapping the cell or onboarding new operators.
-        </p>
-
+      <section style={{ marginBottom: "2rem" }}>
+        <h2>Create New User</h2>
         <form
           onSubmit={handleCreateUser}
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-            gap: "0.75rem",
-            marginTop: "0.75rem",
-          }}
+          style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}
         >
-          <label style={{ fontSize: "0.85rem" }}>
+          <label>
             Username
             <input
               name="username"
               value={newUser.username}
               onChange={handleNewUserChange}
               required
-              placeholder="username"
-              style={{ width: "100%", marginTop: "0.25rem" }}
             />
           </label>
-
-          <label style={{ fontSize: "0.85rem" }}>
+          <label>
             Password
             <input
-              name="password"
               type="password"
+              name="password"
               value={newUser.password}
               onChange={handleNewUserChange}
               required
-              placeholder="••••••••"
-              style={{ width: "100%", marginTop: "0.25rem" }}
             />
           </label>
-
-          <label style={{ fontSize: "0.85rem" }}>
+          <label>
             Role
             <select
               name="role"
               value={newUser.role}
               onChange={handleNewUserChange}
-              style={{ width: "100%", marginTop: "0.25rem" }}
             >
-              <option value="user">User</option>
-              <option value="admin">Admin</option>
+              <option value="user">user</option>
+              <option value="admin">admin</option>
             </select>
           </label>
-
-          <label style={{ fontSize: "0.85rem" }}>
+          <label>
             Display Name
             <input
               name="display_name"
               value={newUser.display_name}
               onChange={handleNewUserChange}
-              placeholder="e.g. CPT You"
-              style={{ width: "100%", marginTop: "0.25rem" }}
             />
           </label>
-
-          <label style={{ fontSize: "0.85rem" }}>
+          <label>
             Job Title
             <input
               name="job_title"
               value={newUser.job_title}
               onChange={handleNewUserChange}
-              placeholder="e.g. Dev Cell Lead"
-              style={{ width: "100%", marginTop: "0.25rem" }}
             />
           </label>
-
-          <label style={{ fontSize: "0.85rem" }}>
+          <label>
             Team Name
             <input
               name="team_name"
               value={newUser.team_name}
               onChange={handleNewUserChange}
-              placeholder="e.g. CSD-D Dev Cell"
-              style={{ width: "100%", marginTop: "0.25rem" }}
             />
           </label>
-
-          <label style={{ fontSize: "0.85rem" }}>
+          <label>
             Rank
             <input
               name="rank"
               value={newUser.rank}
               onChange={handleNewUserChange}
-              placeholder="e.g. CPT, SSG, GS-13"
-              style={{ width: "100%", marginTop: "0.25rem" }}
             />
           </label>
-
-          <label
-            style={{
-              fontSize: "0.85rem",
-              gridColumn: "1 / -1",
-            }}
-          >
+          <label>
             Skills
             <textarea
               name="skills"
               value={newUser.skills}
               onChange={handleNewUserChange}
-              placeholder="Optional: Python, FastAPI, malware dev..."
-              rows={3}
-              style={{
-                width: "100%",
-                marginTop: "0.25rem",
-                resize: "vertical",
-              }}
             />
           </label>
+          <button type="submit" disabled={creating}>
+            {creating ? "Creating..." : "Create User"}
+          </button>
+        </form>
+      </section>
 
-          <div
+      <section>
+        <h2>Existing Users</h2>
+        {loading ? (
+          <p>Loading users...</p>
+        ) : (
+          <table
             style={{
-              gridColumn: "1 / -1",
-              marginTop: "0.5rem",
+              width: "100%",
+              borderCollapse: "collapse",
+              fontSize: "0.9rem",
             }}
           >
-            <button type="submit" disabled={creating}>
-              {creating ? "Creating…" : "Create User"}
-            </button>
-          </div>
-        </form>
-      </div>
+            <thead>
+              <tr>
+                <th style={{ borderBottom: "1px solid #ddd" }}>Username</th>
+                <th style={{ borderBottom: "1px solid #ddd" }}>Role</th>
+                <th style={{ borderBottom: "1px solid #ddd" }}>Active</th>
+                <th style={{ borderBottom: "1px solid #ddd" }}>Display Name</th>
+                <th style={{ borderBottom: "1px solid #ddd" }}>Job</th>
+                <th style={{ borderBottom: "1px solid #ddd" }}>Team</th>
+                <th style={{ borderBottom: "1px solid #ddd" }}>Rank</th>
+                <th style={{ borderBottom: "1px solid #ddd" }}>Skills</th>
+                <th style={{ borderBottom: "1px solid #ddd" }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.map((u) => {
+                const isEditing = editUserId === u.id;
+                return (
+                  <tr key={u.id}>
+                    <td style={{ borderBottom: "1px solid #f0f0f0" }}>
+                      {u.username}
+                    </td>
+                    <td style={{ borderBottom: "1px solid #f0f0f0" }}>
+                      {u.role}{" "}
+                      <button
+                        type="button"
+                        onClick={() => handleToggleRole(u)}
+                        disabled={updating}
+                        style={{ marginLeft: "0.25rem" }}
+                      >
+                        Toggle
+                      </button>
+                    </td>
+                    <td style={{ borderBottom: "1px solid #f0f0f0" }}>
+                      {u.is_active ? "yes" : "no"}{" "}
+                      <button
+                        type="button"
+                        onClick={() => handleToggleActive(u)}
+                        disabled={updating}
+                        style={{ marginLeft: "0.25rem" }}
+                      >
+                        {u.is_active ? "Deactivate" : "Activate"}
+                      </button>
+                    </td>
+                    {isEditing ? (
+                      <>
+                        <td style={{ borderBottom: "1px solid #f0f0f0" }}>
+                          <input
+                            name="display_name"
+                            value={editForm.display_name}
+                            onChange={handleEditChange}
+                          />
+                        </td>
+                        <td style={{ borderBottom: "1px solid #f0f0f0" }}>
+                          <input
+                            name="job_title"
+                            value={editForm.job_title}
+                            onChange={handleEditChange}
+                          />
+                        </td>
+                        <td style={{ borderBottom: "1px solid #f0f0f0" }}>
+                          <input
+                            name="team_name"
+                            value={editForm.team_name}
+                            onChange={handleEditChange}
+                          />
+                        </td>
+                        <td style={{ borderBottom: "1px solid #f0f0f0" }}>
+                          <input
+                            name="rank"
+                            value={editForm.rank}
+                            onChange={handleEditChange}
+                          />
+                        </td>
+                        <td style={{ borderBottom: "1px solid #f0f0f0" }}>
+                          <textarea
+                            name="skills"
+                            value={editForm.skills}
+                            onChange={handleEditChange}
+                          />
+                        </td>
+                        <td style={{ borderBottom: "1px solid #f0f0f0" }}>
+                          <button
+                            type="button"
+                            onClick={() => void handleSaveEdit(u)}
+                            disabled={updating}
+                            style={{ marginRight: "0.25rem" }}
+                          >
+                            Save
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditUserId(null)}
+                            disabled={updating}
+                          >
+                            Cancel
+                          </button>
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        <td style={{ borderBottom: "1px solid #f0f0f0" }}>
+                          {u.display_name ?? ""}
+                        </td>
+                        <td style={{ borderBottom: "1px solid #f0f0f0" }}>
+                          {u.job_title ?? ""}
+                        </td>
+                        <td style={{ borderBottom: "1px solid #f0f0f0" }}>
+                          {u.team_name ?? ""}
+                        </td>
+                        <td style={{ borderBottom: "1px solid #f0f0f0" }}>
+                          {u.rank ?? ""}
+                        </td>
+                        <td style={{ borderBottom: "1px solid #f0f0f0" }}>
+                          {u.skills ?? ""}
+                        </td>
+                        <td style={{ borderBottom: "1px solid #f0f0f0" }}>
+                          <button
+                            type="button"
+                            onClick={() => handleStartEdit(u)}
+                            disabled={updating}
+                          >
+                            Edit
+                          </button>
+                        </td>
+                      </>
+                    )}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </section>
     </div>
   );
 };
