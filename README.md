@@ -1,151 +1,275 @@
 # DevCell Platform
 
-DevCell is a lightweight, self-hosted developer coordination platform for small engineering teams (military, research, startup) who want structured workflow tools **without heavy enterprise systems** — and who prefer running everything on their **own LLM servers**.
+DevCell is a full-stack, self-hosted developer coordination platform optimized for **small technical teams**, **cyber units**, and **research groups** operating in **secure**, **on-prem**, or **air-gapped environments**.
 
-It provides a unified place for:
+It unifies:
 
 * Task management
+* Project coordination
 * Daily standups
-* Dashboard morning briefs
 * Knowledgebase + RAG search
-* Local LLM chat, SITREP, and code review
-* Role-based access control
-* Clean React UI + FastAPI backend
+* Local LLM chat, SITREPs, and code review
+* Training pipelines & seed-task generation
+* Role-based access + project membership
+* Dashboard morning briefs
+
+DevCell runs entirely on your systems — **no cloud services required**.
 
 ---
 
-# 🚀 Features
+# 🚀 Core Capabilities
 
-## **Developer Workflow**
+(based on platform docs and current codebase)
 
-### **Tasks**
+## **1. Tasks & Projects**
 
-* Create / edit / archive tasks
-* Status pills (`todo`, `in_progress`, `blocked`, `done`)
-* Full-text search (title, description, owner, project)
-* Dashboard widgets: My Tasks, Recent Tasks
+### Tasks
 
-### **Projects**
+* Full CRUD
+* Status workflow: `todo`, `in_progress`, `blocked`, `done`
+* Progress tracking
+* Due dates with **quick helpers**: +1d / +3d / +7d / Clear
+* **Bulk operations** (status & due dates)
+* Search, filters, presets, and persistent view settings
+* Standup → Task lineage integration
 
-* Group tasks by project
-* Future: project-level summaries, objectives
+### Projects
 
-### **Daily Standups**
+* Project metadata (name, description, owner)
+* **Project-level permissions** (owner, member, viewer)
+* Summaries integrated into Dashboard
+* Ties together tasks, training units, and activity feeds
 
-* Yesterday / Today / Blockers
+---
+
+## **2. Daily Standups**
+
+* Classic Yesterday / Today / Blockers workflow
 * Markdown export
-* Convert standup items → tasks
-* AI-generated daily summary
+* Standup → Task conversion
+* LLM-powered standup summaries
 
 ---
 
-## **AI-Integrated Modules**
+## **3. Knowledgebase + RAG**
 
-### **Chat Assistant**
+Local-first knowledge system (filesystem + Chroma).
 
-* Chat with your **local** LLM (Ollama, LM Studio, Qwen, vLLM, OpenAI-compatible)
-* Good for reasoning, debugging, and brainstorming
-
-### **AI Code Review**
-
-* Paste code + instructions
-* Your LLM returns improvements, risks, refactoring suggestions
-
-### **AI SITREP**
-
-* Dashboard “Generate SITREP” button
-* Produces a unit / team snapshot from tasks + standups + recent activity
-
-### **Knowledgebase + RAG**
-
-* Upload PDF / TXT / MD
+* Document upload (txt, md, pdf)
 * Automatic extraction + embedding
-* Chroma vector DB
-* Semantic search across all docs
+* Chroma vector index
+* Semantic search
+* Used by Dashboard, Chat, SITREP, and Review pipelines
+* Safe deletion, reindexing, version-aware processing
 
 ---
 
-## **Dashboard**
+## **4. Local LLM Integration**
 
-* Morning Brief
-* My Tasks
-* Recent Tasks
-* Recent Standups
-* Unit Snapshot
-* Quick Actions
-* Generate AI SITREP
+Works with any **OpenAI-compatible endpoint**, including:
+
+* Qwen
+* vLLM
+* Ollama
+* LM Studio
+* Custom local servers
+
+LLM is used for:
+
+* Chat assistant
+* SITREP generation
+* Standup summaries
+* Code review
+* RAG embedding/query
+* Training transformations
+
+Backend uses `llm_client.py` with configurable endpoint.
+
 
 ---
 
-## **Identity & Access Management**
+## **5. Dashboard (“My Today”)**
 
-* Local SQLite users
-* Username/password auth
-* JWT
-* `admin` vs `standard` roles
-* Admin user management page
+Includes:
+
+* Standup status
+* Active tasks
+* Recent tasks & standups
+* Project summaries
+* Quick actions
+* **Generate SITREP** (LLM-generated operational snapshot)
+
+---
+
+## **6. Training Module**
+
+(From training docs + roadmap) 
+
+* Import JSON-based training roadmaps
+* Seed tasks into projects
+* LLM transformations to generate or adjust training tasks
+* Integrates with Knowledgebase & Tasks
+* Supports structured skill-building pipelines (e.g., malware dev roadmap)
+
+---
+
+## **7. Authentication & Permissions**
+
+Authentication:
+
+* Username/password login
+* Secure session token storage (Bearer token via DB)
+* Admin-managed user lifecycle
+
+Global roles:
+
+* `admin`
+* `user`
+
+Project-level roles:
+
+* `owner`
+* `member`
+* `viewer`
+
+Permissions enforced in:
+
+* Tasks
+* Projects
+* Standups
+* Dashboard
+* Training
+* Knowledgebase
+
+(Defined across modules and documented under permissions)
+
+
+---
+
+## **8. Administration**
+
+Admin-only functionality:
+
+* User creation
+* Role assignment
+* Activation/deactivation
+* Password resets
+* Profile updates
 
 ---
 
 # 🏗 High-Level Architecture
 
+Based on docs + structure.
+
+
 ```
-[ React Frontend ]  <----->  [ FastAPI Backend ]  <----->  [ LLM Server ]
-        │                            │                          │
-        │                            │                          └── OpenAI-compatible endpoint
-        │                            ├── SQLite DB (relational)
-        │                            └── Chroma DB (vector store)
+[ React + TypeScript Frontend ]
+        │  REST API
+        ▼
+[ FastAPI Backend ]
+  Auth / Tasks / Projects / Standups
+  Dashboard / RAG / LLM / Training
+        │
+        ├── SQLite  (relational data)
+        └── Chroma  (vector embeddings)
 ```
+
+Designed for:
+
+* Local-first
+* Modular architecture
+* Predictable internal data flows
+* Secure, offline-capable operation
 
 ---
 
-## **Frontend**
+# 🎨 Frontend (React + TypeScript)
 
-* React + TypeScript + Vite
-* Pages:
+(From tree structure)
 
-  * Login, Dashboard, Tasks, Projects, Standups
-  * Knowledgebase, Chat, Code Review
-  * Admin
-* Contexts:
 
-  * `UserContext`, `ThemeContext`, `ToastContext`
-* Modern layout (Sidebar + Topbar)
+Pages:
 
-## **Backend**
+* Dashboard
+* Tasks
+* Projects
+* Standups
+* Knowledge
+* Chat
+* Code Review
+* Training
+* Admin
+* Login / Register / Profile
 
-* FastAPI + Python 3
-* Modules:
+Contexts:
 
-  * Auth, Tasks, Standups, Dashboard, Projects
-  * Knowledgebase / RAG
-  * LLM proxy utilities
-* SQLite for relational data
-* Chroma for embeddings
-* JWT authentication
+* `UserContext`
+* `ThemeContext`
+* `ToastContext`
 
-## **LLM Server**
+Shared components:
 
-Compatible servers:
+* Layout
+* Sidebar
+* Topbar
+* StandupTaskConvertModal
 
-* Qwen Coder 7B
-* OpenAI-compatible endpoints
-* LM Studio
-* Ollama
-* vLLM
-* Custom self-hosted inference servers
+---
 
-Configurable via env:
+# ⚙️ Backend (FastAPI)
+
+Modules:
+
+* Auth
+* Projects + Membership
+* Tasks
+* Standups
+* Dashboard
+* Knowledgebase / RAG
+* Training
+* Review
+* Health
+* LLM integration
+
+Services layer includes:
+
+* Task store
+* Standup store + summary
+* Project membership
+* Knowledge embed/query pipeline
+* Training import + seed tasks
+* Review service
+* RAG service
+
+Schemas align with API routes (see `docs/api/*`).
+
+
+---
+
+# 🤖 LLM Server Support
+
+Compatible with **any endpoint supporting ChatCompletions**.
+
+Configure:
 
 ```
-LLM_ENDPOINT=http://localhost:8001/api/v1/query
+LLM_ENDPOINT=http://localhost:8001/v1/chat/completions
 ```
+
+Used by:
+
+* `/api/chat`
+* `/api/review`
+* `/api/standups/summary`
+* `/api/training/*`
+* knowledgebase embedding
 
 ---
 
 # ⚡ Quick Start (Local Development)
 
-## 1. Backend
+## Backend
 
 ```bash
 cd backend
@@ -156,18 +280,20 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --host 0.0.0.0 --port 9000
 ```
 
-Environment file (`backend/.env`):
+Environment (`backend/.env`):
 
 ```env
-JWT_SECRET=your_secret_here
-JWT_ALGORITHM=HS256
-LLM_ENDPOINT=http://localhost:8001/api/v1/query
+SESSION_SECRET=your_secret_here
+LLM_ENDPOINT=http://localhost:8001/v1/chat/completions
 KNOWLEDGEBASE_DIR=../knowledgebase
 ```
 
+*Note:*
+Your backend uses **session tokens**, not JWT — updated to match current implementation.
+
 ---
 
-## 2. Frontend
+## Frontend
 
 ```bash
 cd frontend
@@ -175,13 +301,13 @@ npm install
 npm run dev
 ```
 
-Environment file (`frontend/.env`):
+`frontend/.env`:
 
 ```env
 VITE_API_URL=http://localhost:9000
 ```
 
-Frontend runs at:
+Frontend served at:
 
 ```
 http://localhost:5173
@@ -189,81 +315,99 @@ http://localhost:5173
 
 ---
 
-# 📁 Final Project Structure
+# 📁 Repository Structure
 
-(Reflects the cleaned, recommended layout)
+(Synchronized with actual repo layout)
+
 
 ```
 devcell-platform/
 │
 ├── backend/
 │   ├── app/
-│   │   ├── api/           # Routes
-│   │   ├── core/          # Settings, LLM client
-│   │   ├── schemas/       # Pydantic models
-│   │   ├── services/      # Business logic
-│   │   ├── knowledgebase/ # RAG documents (canonical location)
-│   │   ├── main.py
-│   │   └── db.py
-│   ├── tests/
+│   │   ├── api/routes
+│   │   ├── core
+│   │   ├── schemas
+│   │   ├── services
+│   │   ├── knowledgebase
+│   │   ├── training
+│   │   └── main.py
 │   └── requirements.txt
 │
 ├── frontend/
 │   ├── src/
 │   │   ├── components/
-│   │   ├── pages/
 │   │   ├── context/
-│   │   ├── api/
-│   │   └── App.tsx
-│   └── __tests__/
+│   │   ├── lib/
+│   │   ├── pages/
+│   │   ├── App.tsx
+│   │   └── main.tsx
+│   └── vite.config.ts
 │
-├── scripts/
-│   ├── structure.sh
-│   ├── extract_feature_files.sh
-│   └── README.md
+├── docs/
+│   ├── overview/*          # index, features, roadmap
+│   ├── api/*               # all API references
+│   ├── architecture/*      # system, backend, frontend, LLM
+│   ├── modules/*           # tasks, projects, standups, etc.
+│   ├── developer/*         # structure, workflows, extensions
+│   ├── operations/*        # install, run, deployment, backups
+│   └── adr/*               # ADR-001 ... ADR-010
 │
-├── knowledgebase/         # For RAG docs (root-level shared)
-│
-├── docs/                  # 00_Overview → 99_Design_Decisions
-│
+├── knowledgebase/          # RAG document store
 └── README.md
 ```
 
 ---
 
-# 📚 Documentation (Full)
+# 📚 Documentation Overview
 
-All docs live in `docs/`:
+(from docs_structure.txt)
 
-* `00_Overview.md`
-* `01_Getting_Started.md`
-* `02_Architecture.md`
-* `03_Developer_Guide.md`
-* `04_Operations.md`
-* `05_API_Reference.md`
-* `99_Design_Decisions.md`
 
----
-
-# 🧭 Roadmap (Short Version)
-
-* Dashboard Phase 2 widgets
-* Knowledgebase metadata + source filters
-* Notifications + email/webhooks
-* Role-based permissions per module
-* Plugin system
-* Multi-tenant support
+* **Overview:** Intro, features, roadmap
+* **Architecture:** system diagram, backend, frontend, LLM integration
+* **Modules:** tasks, projects, standups, dashboard, training, knowledge, chat, review, permissions
+* **API Reference:** full REST documentation
+* **Developer Guides:** code style, testing, extending modules
+* **Operations:** installation, deployment, monitoring, troubleshooting
+* **ADRs:** local LLM, SQLite, FastAPI/React, permissions, RAG design, training units
 
 ---
 
-# ⚠️ Disclaimer
+# 🧭 Roadmap (Short Summary)
 
-DevCell is intended for internal use within secure environments.
-If deploying externally, add:
+(from 02_roadmap.md)
 
-* TLS / HTTPS
-* Reverse proxy (NGINX, Caddy)
-* Firewall & Zero Trust network rules
-* Strong password enforcement
+
+### Near Term
+
+* Project permissions UI
+* Real-time standup/task sync
+* KB metadata + versioning
+* Training preview interface
+
+### Medium Term
+
+* Plugin framework
+* Analytics dashboards
+* Advanced RBAC
+* Inline document viewer
+
+### Long Term
+
+* Multi-tenant deployments
+* Federated DevCell clusters
+* Expanded AI agent workflows
 
 ---
+
+# ⚠️ Security Note
+
+DevCell is built for **internal secure networks**.
+If deployed externally:
+
+* Use TLS
+* Add reverse proxy (NGINX/Caddy)
+* Enforce password rules
+* Limit exposure to LLM endpoints
+* Consider zero-trust segmentation
