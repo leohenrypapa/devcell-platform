@@ -43,6 +43,7 @@ def register(payload: UserCreate):
     Rules:
     - If this is the FIRST user in the system, they become admin.
     - Otherwise, new users are created as role='user' (payload.role is ignored).
+    - Profile fields (display_name, job_title, team_name, rank, skills) are accepted.
     - Returns a LoginResponse so the frontend can auto-login after registration.
     """
     if get_user_by_username(payload.username):
@@ -58,10 +59,18 @@ def register(payload: UserCreate):
     else:
         role = "user"
 
-    # create_user should hash the password and store the user
-    # NOTE: if you extend create_user to accept profile fields,
-    #       pass them in here as well.
-    user = create_user(payload.username, payload.password, role)
+    # create_user hashes the password and stores the user.
+    # We pass profile fields explicitly here.
+    user = create_user(
+        username=payload.username,
+        raw_password=payload.password,
+        role=role,
+        display_name=payload.display_name,
+        job_title=payload.job_title,
+        team_name=payload.team_name,
+        rank=payload.rank,
+        skills=payload.skills,
+    )
 
     # Immediately create a session so we can return an access token
     token = create_session(user.id)

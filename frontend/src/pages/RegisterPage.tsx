@@ -1,12 +1,10 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useUser } from "../context/UserContext";
-
-const backendBase =
-  (import.meta as any).env.VITE_BACKEND_BASE_URL || "http://localhost:9000";
+import { BACKEND_BASE } from "../lib/backend";
 
 const RegisterPage: React.FC = () => {
-  const { setUserAndToken } = useUser() as any; // adjust hook if needed
+  const { setUserAndToken } = useUser();
   const navigate = useNavigate();
 
   const [form, setForm] = useState({
@@ -41,7 +39,7 @@ const RegisterPage: React.FC = () => {
 
     setLoading(true);
     try {
-      const res = await fetch(`${backendBase}/api/auth/register`, {
+      const res = await fetch(`${BACKEND_BASE}/api/auth/register`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -64,7 +62,9 @@ const RegisterPage: React.FC = () => {
 
       const data = await res.json();
       // data: { access_token, token_type, user }
-      setUserAndToken(data.user, data.access_token);
+      if (data.user && data.access_token) {
+        setUserAndToken(data.user, data.access_token);
+      }
       navigate("/");
     } catch (err: any) {
       setError(err.message || "Registration failed.");
@@ -77,12 +77,21 @@ const RegisterPage: React.FC = () => {
     <div style={{ maxWidth: 480, margin: "2rem auto" }}>
       <h1>Create Account</h1>
       <p style={{ fontSize: "0.9rem", opacity: 0.8 }}>
-        Register as a new user. You will start with role <strong>user</strong>.
+        Register as a new user. You will start with role{" "}
+        <strong>user</strong> (unless you are the very first user, in which case
+        you become <strong>admin</strong>).
       </p>
 
       {error && <p style={{ color: "red" }}>{error}</p>}
 
-      <form onSubmit={onSubmit} style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+      <form
+        onSubmit={onSubmit}
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: "0.5rem",
+        }}
+      >
         <label>
           Username
           <input

@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 from app.services.standup.conversion import convert_standup_to_tasks
 from app.schemas.standup import StandupCreate, StandupEntry, StandupList, StandupUpdate
-from app.schemas.task import TaskCreate, TaskEntry, TaskList
+from app.schemas.task import TaskList
 from app.services.standup_store import (
     add_standup,
     get_today_standups,
@@ -18,7 +18,7 @@ from app.services.standup_summary import (
     summarize_today_standups,
     summarize_standups_for_date,
 )
-from app.services.task_store import list_tasks_for_standup, add_task
+from app.services.task_store import list_tasks_for_standup
 from app.services.auth_service import get_current_user
 from app.schemas.user import UserPublic
 

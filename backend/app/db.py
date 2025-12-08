@@ -1,7 +1,8 @@
+# backend/app/db.py
+
 from pathlib import Path
 import sqlite3
 
-from typing import Iterator
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 DB_PATH = BASE_DIR / "devcell.db"
@@ -62,6 +63,21 @@ def init_db() -> None:
             owner TEXT DEFAULT '',
             status TEXT NOT NULL,
             created_at TEXT NOT NULL
+        );
+        """
+    )
+
+    # NEW: Project members table (project-level permissions)
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS project_members (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project_id INTEGER NOT NULL,
+            username TEXT NOT NULL,
+            role TEXT NOT NULL,          -- 'owner' | 'member' | 'viewer'
+            created_at TEXT NOT NULL,
+            UNIQUE (project_id, username),
+            FOREIGN KEY (project_id) REFERENCES projects (id)
         );
         """
     )

@@ -30,6 +30,7 @@ type UserContextValue = {
   login: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
   setUser: React.Dispatch<React.SetStateAction<User | null>>;
+  setUserAndToken: (user: User, token: string) => void;
 };
 
 const UserContext = createContext<UserContextValue | undefined>(undefined);
@@ -42,6 +43,12 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
+
+  const setUserAndToken = (nextUser: User, nextToken: string) => {
+    setUser(nextUser);
+    setToken(nextToken);
+    window.localStorage.setItem(LOCAL_TOKEN_KEY, nextToken);
+  };
 
   useEffect(() => {
     const storedToken = window.localStorage.getItem(LOCAL_TOKEN_KEY);
@@ -95,11 +102,11 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({
         | undefined
         | null;
 
-      setUser(returnedUser);
-
       if (accessToken) {
-        setToken(accessToken);
-        window.localStorage.setItem(LOCAL_TOKEN_KEY, accessToken);
+        setUserAndToken(returnedUser, accessToken);
+      } else {
+        // Fallback: set user but no token (shouldn't normally happen)
+        setUser(returnedUser);
       }
 
       return true;
@@ -122,6 +129,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({
     login,
     logout,
     setUser,
+    setUserAndToken,
   };
 
   if (!initialized) {

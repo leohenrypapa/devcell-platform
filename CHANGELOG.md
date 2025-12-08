@@ -9,8 +9,145 @@
 ### Fixed
 -
 
+## [0.6.3] - 2025-12-08
+
+### Added
+- Added `frontend/src/lib/users.ts` as a unified helper module for:
+  - Listing users
+  - Creating users (admin)
+  - Updating users (admin)
+  - Shared request typing (`AdminCreateUserPayload`, `AdminUpdateUserPayload`)
+- Added backend **admin safety guardrail**:
+  - Prevents demoting the *last active admin* (`admin → user`)
+  - Prevents deactivating the *last active admin* (`is_active → False`)
+  - Raises clear HTTP 400 with message `"Cannot remove the last active admin user."`
+
+### Changed
+- Refactored `AdminPage.tsx` to use centralized helper functions from `lib/users.ts`
+  instead of calling `fetch` directly.
+- All admin update routes now consistently return typed `User` responses.
+- Improved error handling path for admin actions.
+
+### Fixed
+- Eliminated risk of locking the organization out of admin access by ensuring at
+  least one active admin must always exist.
+- Standardized request headers and JSON handling for admin-related API calls.
 
 ---
+
+## [0.6.2] - 2025-12-08
+
+### Added
+- Inline profile editing on the Admin User Management page (display name, job title, team, rank, skills).
+- Rich user table showing core auth fields plus profile metadata.
+
+### Changed
+- Admin page UX for user management: clearer layout, dedicated refresh, and better feedback messages for admin actions.
+
+### Fixed
+- Ensured admin actions (role/active/profile updates) consistently refresh the user list after successful changes.
+
+---
+
+## [0.6.1] - 2025-12-08
+
+### **Added**
+
+* Added **24-week Malware Developer Training syllabus API**
+  (`GET /api/training/malware/syllabus`) returning structured week summaries.
+* Added **LLM-powered seed-task generation API**
+  (`POST /api/training/malware/seed_tasks`) creating benign, lab-only tasks directly into `/api/tasks`.
+* Added **training schemas** (`MalwareTrainingWeek`, `MalwareTrainingSyllabus`, `SeedTasksRequest`).
+* Added full backend service module:
+  `backend/app/services/training/malware_seed_tasks.py`
+
+  * Safe, defensive-only system prompt
+  * JSON & bullet-list parsing
+  * Deterministic fallback tasks
+  * `[WNN]` week-prefix enforcement
+* Added new frontend page:
+  `TrainingPage.tsx`
+
+  * Week selector
+  * Syllabus viewer
+  * Auto seed-task generator UI
+  * Week progress calculation using existing Tasks API
+  * Training-task panel with status pills and task grouping
+* Added new frontend navigation link (Sidebar → **Training**).
+* Added frontend route (`/training`) with auth guard.
+* Added backend routing integration in:
+
+  * `backend/app/main.py`
+  * `backend/app/api/routes/__init__.py`
+
+---
+
+### **Changed**
+
+* Updated `malware_seed_tasks.py` to include:
+
+  * Robust JSON cleanup (strip fences, remove markdown, extract valid `{}` block)
+  * Cleaner fallback if LLM output is malformed
+  * Stronger safety guardrails (no operational behaviors)
+* Updated training task creation to ensure:
+
+  * All titles normalized to `[WNN]`
+  * Task descriptions are defensive, benign, and lab-only
+  * Due dates calculated consistently
+* Updated frontend backend URL handling to support TrainingPage and token-authenticated requests.
+* Improved LLM system prompts to produce predictable structured output for syllabus-based tasks.
+* Aligned backend startup guidance (must run uvicorn from `/backend` root).
+
+---
+
+### **Fixed**
+
+* Fixed seed-task garbage output (e.g., ````json`, `{`, `"tasks": [` lines becoming tasks) by implementing strict bullet validation and JSON sanity checks.
+* Fixed malformed LLM responses causing fallback logic to misbehave.
+* Fixed missing imports (`date`, `timedelta`) in training route.
+* Fixed `ModuleNotFoundError: No module named 'app'` by correcting backend working directory during startup.
+* Fixed 401/404 issues by ensuring TrainingPage uses correct backend base URL instead of LLM port 8000.
+* Fixed TrainingPage token handling so authenticated users can load tasks and syllabus reliably.
+
+---
+
+## [0.6.0] - 2025-12-08
+
+### Added
+- Project-level permissions model:
+  - New `project_members` table (project_id, username, role, created_at).
+  - New schemas: `ProjectRole`, `ProjectMember`, `ProjectMemberList`, `ProjectMemberCreate`.
+  - New service module `services/projects/members.py` for membership CRUD and helper queries.
+- New API endpoints:
+  - `GET /api/projects/mine` – list projects where the current user is owner or member.
+  - `GET /api/projects/{project_id}/members` – list members for a project (owner/admin/members only).
+  - `POST /api/projects/{project_id}/members` – add or update a project member (owner/admin only).
+  - `DELETE /api/projects/{project_id}/members/{username}` – remove a project member (owner/admin only).
+
+### Changed
+- `POST /api/projects` now automatically creates a `project_members` row for the creator with role `owner`.
+- Database initialization (`db.py`) now creates the `project_members` table on startup.
+
+### Fixed
+- N/A (backend behavior is backward-compatible for existing projects; membership is additive).
+
+---
+
+## **[0.5.4] - 2025-12-08**
+
+### Added
+- Added `setUserAndToken()` helper to `UserContext` for unified login/registration token handling.
+- Added admin-only visibility for Sidebar navigation — "Admin" link now appears only for users with `role: "admin"`.
+
+### Changed
+- Updated `/auth/register` to correctly accept and persist extended profile fields (display_name, job_title, team_name, rank, skills).
+- Updated `AdminPage` to use the correct admin-only user creation endpoint (`POST /auth/admin/create_user`).
+- Standardized non-admin role handling internally as `role: "user"` (no behavioral change, just consistency).
+
+### Fixed
+- Fixed registration auto-login by adding the missing `setUserAndToken()` implementation in `UserContext`.
+- Fixed Sidebar incorrectly showing the Admin menu for all users; now properly role-gated.
+
 
 ## **[0.5.3] - 2025-12-03**
 

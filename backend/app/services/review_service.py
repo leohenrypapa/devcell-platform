@@ -1,4 +1,3 @@
-from typing import Optional
 from app.core.llm_client import llm_chat
 from app.schemas.review import CodeReviewRequest
 

@@ -3,7 +3,6 @@ from typing import List, Dict, Any
 
 import chromadb
 from chromadb.utils import embedding_functions
-from app.core.config import settings
 from app.core.llm_client import llm_chat
 
 # Base paths

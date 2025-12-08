@@ -11,7 +11,8 @@ from app.api.routes import (
     review,
     dashboard,
     auth,
-    tasks,  # 👈 NEW: tasks router
+    tasks,
+    training,
 )
 
 from app.db import init_db
@@ -45,7 +46,9 @@ def create_app() -> FastAPI:
     app.include_router(review.router, prefix=api_prefix)
     app.include_router(dashboard.router, prefix=api_prefix)
     app.include_router(auth.router, prefix=api_prefix)
-    app.include_router(tasks.router, prefix=api_prefix)  # 👈 NEW: /api/tasks
+    app.include_router(tasks.router, prefix=api_prefix)
+    app.include_router(training.router, prefix=api_prefix)
+
 
     # -------------------------
     # STARTUP EVENTS

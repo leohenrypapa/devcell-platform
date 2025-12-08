@@ -16,6 +16,7 @@ import ProjectsPage from "./pages/ProjectsPage";
 import RegisterPage from "./pages/RegisterPage";
 import StandupPage from "./pages/StandupPage";
 import TasksPage from "./pages/TasksPage";
+import TrainingPage from "./pages/TrainingPage";
 
 const App: React.FC = () => {
   const { isAuthenticated, user } = useUser();
@@ -82,6 +83,12 @@ const App: React.FC = () => {
           }
         />
         <Route
+          path="/training"
+          element={
+            isAuthenticated ? <TrainingPage /> : <Navigate to="/login" replace />
+          }
+        />
+        <Route
           path="/admin"
           element={
             isAdmin ? (
@@ -93,6 +100,7 @@ const App: React.FC = () => {
             )
           }
         />
+
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>

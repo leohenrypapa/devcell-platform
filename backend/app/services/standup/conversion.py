@@ -1,4 +1,3 @@
-from datetime import date as date_cls
 from typing import List
 
 from fastapi import HTTPException, status

@@ -1,21 +1,22 @@
 // filename: frontend/src/pages/ProjectsPage.tsx
 import React, { useEffect, useState } from "react";
 import { useUser } from "../context/UserContext";
+import {
+  fetchAllProjects,
+  fetchMyProjects,
+  getProjectMembers,
+  addOrUpdateProjectMember,
+  deleteProjectMember,
+} from "../lib/projects";
 
-type ProjectStatus = "planned" | "active" | "blocked" | "done";
+import type {
+  Project,
+  ProjectStatus,
+  ProjectMember,
+  ProjectMemberRole,
+} from "../lib/projects";
 
-type Project = {
-  id: number;
-  name: string;
-  description: string;
-  owner: string;
-  status: ProjectStatus;
-  created_at: string;
-};
-
-type ProjectListResponse = {
-  items: Project[];
-};
+import { BACKEND_BASE } from "../lib/backend";
 
 type ProjectSummaryResponse = {
   project_id: number;
@@ -23,9 +24,6 @@ type ProjectSummaryResponse = {
   summary: string;
   count: number;
 };
-
-const backendBase =
-  (import.meta as any).env.VITE_BACKEND_BASE_URL || "http://localhost:9000";
 
 const ProjectsPage: React.FC = () => {
   const { user, token, isAuthenticated } = useUser();
@@ -50,28 +48,53 @@ const ProjectsPage: React.FC = () => {
     null
   );
 
-  const loadProjects = async () => {
+  // Members state
+  const [membersByProject, setMembersByProject] = useState<
+    Record<number, ProjectMember[]>
+  >({});
+  const [membersLoadingProjectId, setMembersLoadingProjectId] = useState<
+    number | null
+  >(null);
+  const [membersError, setMembersError] = useState<string | null>(null);
+  const [expandedMembersProjectId, setExpandedMembersProjectId] = useState<
+    number | null
+  >(null);
+
+  const [newMemberUsername, setNewMemberUsername] = useState("");
+  const [newMemberRole, setNewMemberRole] =
+    useState<ProjectMemberRole>("member");
+
+  const loadProjects = async (mine: boolean) => {
     setLoading(true);
     setError(null);
 
     try {
-      const res = await fetch(`${backendBase}/api/projects`);
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
+      let data: Project[];
+
+      if (mine) {
+        if (!token) {
+          throw new Error("Authentication required to load your projects.");
+        }
+        data = await fetchMyProjects(token);
+      } else {
+        data = await fetchAllProjects();
       }
-      const data: ProjectListResponse = await res.json();
-      setProjects(data.items || []);
+
+      setProjects(data);
     } catch (err: unknown) {
       console.error(err);
-      setError("Failed to load projects.");
+      const message =
+        err instanceof Error ? err.message : "Failed to load projects.";
+      setError(message);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    void loadProjects();
-  }, []);
+    void loadProjects(showMineOnly);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showMineOnly, token]);
 
   const handleSaveProject = async () => {
     if (!isAuthenticated || !token) {
@@ -89,11 +112,11 @@ const ProjectsPage: React.FC = () => {
     setError(null);
 
     try {
-      let url = `${backendBase}/api/projects`;
+      let url = `${BACKEND_BASE}/api/projects`;
       let method: "POST" | "PUT" = "POST";
 
       if (editingProjectId !== null) {
-        url = `${backendBase}/api/projects/${editingProjectId}`;
+        url = `${BACKEND_BASE}/api/projects/${editingProjectId}`;
         method = "PUT";
       }
 
@@ -115,7 +138,7 @@ const ProjectsPage: React.FC = () => {
         throw new Error(`HTTP ${res.status}`);
       }
 
-      await loadProjects();
+      await loadProjects(showMineOnly);
 
       setName("");
       setDescription("");
@@ -150,7 +173,7 @@ const ProjectsPage: React.FC = () => {
 
     try {
       const res = await fetch(
-        `${backendBase}/api/projects/${projectId}/summary`,
+        `${BACKEND_BASE}/api/projects/${projectId}/summary`,
         {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         }
@@ -170,16 +193,143 @@ const ProjectsPage: React.FC = () => {
     }
   };
 
-  const filteredProjects = showMineOnly
-    ? projects.filter((p) => p.owner === loggedInOwner)
-    : projects;
+  const toggleShowMineOnly = (checked: boolean) => {
+    setShowMineOnly(checked);
+  };
+
+  const handleToggleMembers = async (project: Project) => {
+    if (!token) {
+      alert("You must be signed in to view project members.");
+      return;
+    }
+
+    if (expandedMembersProjectId === project.id) {
+      // collapse
+      setExpandedMembersProjectId(null);
+      setMembersError(null);
+      return;
+    }
+
+    setExpandedMembersProjectId(project.id);
+    setMembersError(null);
+
+    // If we already have members loaded for this project, don't re-fetch immediately.
+    if (membersByProject[project.id]?.length) {
+      return;
+    }
+
+    setMembersLoadingProjectId(project.id);
+
+    try {
+      const members = await getProjectMembers(project.id, token);
+      setMembersByProject((prev) => ({
+        ...prev,
+        [project.id]: members,
+      }));
+    } catch (err: unknown) {
+      console.error(err);
+      const message =
+        err instanceof Error ? err.message : "Failed to load project members.";
+      setMembersError(message);
+    } finally {
+      setMembersLoadingProjectId(null);
+    }
+  };
+
+  const handleAddMember = async (project: Project) => {
+    if (!token) {
+      alert("You must be signed in to modify project members.");
+      return;
+    }
+
+    if (!newMemberUsername.trim()) {
+      alert("Please enter a username.");
+      return;
+    }
+
+    try {
+      const member = await addOrUpdateProjectMember(
+        project.id,
+        {
+          username: newMemberUsername.trim(),
+          role: newMemberRole,
+        },
+        token
+      );
+
+      setMembersByProject((prev) => {
+        const existing = prev[project.id] ?? [];
+        const updated = [
+          ...existing.filter((m) => m.username !== member.username),
+          member,
+        ].sort((a, b) => a.username.localeCompare(b.username));
+
+        return {
+          ...prev,
+          [project.id]: updated,
+        };
+      });
+
+      setNewMemberUsername("");
+      setNewMemberRole("member");
+      setMembersError(null);
+    } catch (err: unknown) {
+      console.error(err);
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Failed to add/update project member.";
+      setMembersError(message);
+    }
+  };
+
+  const handleRemoveMember = async (project: Project, username: string) => {
+    if (!token) {
+      alert("You must be signed in to modify project members.");
+      return;
+    }
+
+    if (
+      !window.confirm(
+        `Remove ${username} from project "${project.name}"? This cannot be undone.`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      await deleteProjectMember(project.id, username, token);
+      setMembersByProject((prev) => {
+        const existing = prev[project.id] ?? [];
+        const updated = existing.filter((m) => m.username !== username);
+        return {
+          ...prev,
+          [project.id]: updated,
+        };
+      });
+      setMembersError(null);
+    } catch (err: unknown) {
+      console.error(err);
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Failed to remove project member.";
+      setMembersError(message);
+    }
+  };
+
+  const canManageMembers = (project: Project): boolean => {
+    if (!user) return false;
+    return isAdmin || project.owner === user.username;
+  };
 
   return (
     <div>
       <h1>Projects</h1>
       <p style={{ fontSize: "0.9rem", opacity: 0.8 }}>
         Track team projects and get AI-generated summaries from recent standups
-        and tasks.
+        and tasks. Project membership determines who is allowed to see and
+        modify specific projects.
       </p>
 
       {/* Create / Edit project */}
@@ -251,59 +401,242 @@ const ProjectsPage: React.FC = () => {
 
       {/* Projects list */}
       <section style={{ marginTop: "2rem" }}>
-        <h2>All Projects</h2>
+        <h2>Projects List</h2>
         <label style={{ display: "block", marginBottom: "0.5rem" }}>
           <input
             type="checkbox"
             checked={showMineOnly}
-            onChange={(e) => setShowMineOnly(e.target.checked)}
+            onChange={(e) => toggleShowMineOnly(e.target.checked)}
           />{" "}
           Show only my projects
         </label>
 
         {loading && <p>Loading projects...</p>}
-        {!loading && filteredProjects.length === 0 && (
+        {!loading && projects.length === 0 && (
           <p style={{ fontSize: "0.9rem", opacity: 0.8 }}>
             No projects found. Create one above.
           </p>
         )}
 
-        {!loading && filteredProjects.length > 0 && (
+        {!loading && projects.length > 0 && (
           <ul>
-            {filteredProjects.map((p) => (
-              <li
-                key={p.id}
-                style={{
-                  marginBottom: "0.75rem",
-                  borderBottom: "1px solid #eee",
-                  paddingBottom: "0.5rem",
-                }}
-              >
-                <div>
-                  <strong>{p.name}</strong>{" "}
-                  <span style={{ fontSize: "0.8rem", opacity: 0.7 }}>
-                    ({p.status}) – owner: {p.owner}
-                  </span>
-                </div>
-                {p.description && (
-                  <div style={{ fontSize: "0.9rem", marginTop: "0.15rem" }}>
-                    {p.description}
+            {projects.map((p) => {
+              const isExpanded = expandedMembersProjectId === p.id;
+              const members = membersByProject[p.id] ?? [];
+
+              return (
+                <li
+                  key={p.id}
+                  style={{
+                    marginBottom: "0.75rem",
+                    borderBottom: "1px solid #eee",
+                    paddingBottom: "0.5rem",
+                  }}
+                >
+                  <div>
+                    <strong>{p.name}</strong>{" "}
+                    <span style={{ fontSize: "0.8rem", opacity: 0.7 }}>
+                      ({p.status}) – owner: {p.owner}
+                    </span>
                   </div>
-                )}
-                <div style={{ marginTop: "0.25rem" }}>
-                  <button type="button" onClick={() => handleEdit(p)}>
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleSummarize(p.id)}
-                    style={{ marginLeft: "0.5rem" }}
-                  >
-                    Summarize
-                  </button>
-                </div>
-              </li>
-            ))}
+                  {p.description && (
+                    <div
+                      style={{ fontSize: "0.9rem", marginTop: "0.15rem" }}
+                    >
+                      {p.description}
+                    </div>
+                  )}
+                  <div style={{ marginTop: "0.25rem" }}>
+                    <button type="button" onClick={() => handleEdit(p)}>
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSummarize(p.id)}
+                      style={{ marginLeft: "0.5rem" }}
+                    >
+                      Summarize
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleMembers(p)}
+                      style={{ marginLeft: "0.5rem" }}
+                    >
+                      {isExpanded ? "Hide members" : "Show members"}
+                    </button>
+                  </div>
+
+                  {isExpanded && (
+                    <div
+                      style={{
+                        marginTop: "0.5rem",
+                        padding: "0.5rem",
+                        border: "1px solid #ddd",
+                        borderRadius: "4px",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          marginBottom: "0.5rem",
+                        }}
+                      >
+                        <strong>Members</strong>
+                        {membersLoadingProjectId === p.id && (
+                          <span
+                            style={{
+                              fontSize: "0.8rem",
+                              opacity: 0.7,
+                            }}
+                          >
+                            Loading members...
+                          </span>
+                        )}
+                      </div>
+
+                      {membersError && (
+                        <p
+                          style={{
+                            color: "red",
+                            fontSize: "0.85rem",
+                            marginBottom: "0.5rem",
+                          }}
+                        >
+                          {membersError}
+                        </p>
+                      )}
+
+                      {members.length === 0 && !membersLoadingProjectId && (
+                        <p
+                          style={{
+                            fontSize: "0.85rem",
+                            opacity: 0.8,
+                            marginBottom: "0.5rem",
+                          }}
+                        >
+                          No members have been added to this project yet.
+                        </p>
+                      )}
+
+                      {members.length > 0 && (
+                        <ul
+                          style={{
+                            listStyle: "none",
+                            paddingLeft: 0,
+                            marginBottom: "0.5rem",
+                          }}
+                        >
+                          {members.map((m) => (
+                            <li
+                              key={`${m.project_id}-${m.username}`}
+                              style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                                padding: "0.25rem 0",
+                                borderBottom: "1px solid #f3f4f6",
+                              }}
+                            >
+                              <span>
+                                <strong>{m.username}</strong>{" "}
+                                <span
+                                  style={{
+                                    fontSize: "0.8rem",
+                                    opacity: 0.8,
+                                  }}
+                                >
+                                  ({m.role})
+                                </span>
+                              </span>
+                              {canManageMembers(p) && m.role !== "owner" && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleRemoveMember(p, m.username)
+                                  }
+                                  style={{
+                                    fontSize: "0.8rem",
+                                    padding: "0.15rem 0.5rem",
+                                  }}
+                                >
+                                  Remove
+                                </button>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+
+                      {canManageMembers(p) && (
+                        <div
+                          style={{
+                            display: "flex",
+                            flexWrap: "wrap",
+                            gap: "0.5rem",
+                            alignItems: "flex-end",
+                            marginTop: "0.5rem",
+                          }}
+                        >
+                          <div style={{ minWidth: 160 }}>
+                            <label
+                              style={{
+                                fontSize: "0.85rem",
+                                display: "block",
+                                marginBottom: "0.15rem",
+                              }}
+                            >
+                              Username
+                            </label>
+                            <input
+                              value={newMemberUsername}
+                              onChange={(e) =>
+                                setNewMemberUsername(e.target.value)
+                              }
+                              placeholder="username"
+                              style={{ width: "100%" }}
+                            />
+                          </div>
+                          <div>
+                            <label
+                              style={{
+                                fontSize: "0.85rem",
+                                display: "block",
+                                marginBottom: "0.15rem",
+                              }}
+                            >
+                              Role
+                            </label>
+                            <select
+                              value={newMemberRole}
+                              onChange={(e) =>
+                                setNewMemberRole(
+                                  e.target.value as ProjectMemberRole
+                                )
+                              }
+                            >
+                              <option value="member">member</option>
+                              <option value="viewer">viewer</option>
+                              <option value="owner">owner</option>
+                            </select>
+                          </div>
+                          <div>
+                            <button
+                              type="button"
+                              onClick={() => handleAddMember(p)}
+                              style={{ marginTop: "0.5rem" }}
+                            >
+                              Add / Update Member
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>

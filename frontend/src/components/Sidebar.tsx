@@ -3,9 +3,11 @@ import React from "react";
 import { NavLink } from "react-router-dom";
 
 import { useTheme } from "../context/ThemeContext";
+import { useUser } from "../context/UserContext";
 
 const Sidebar: React.FC = () => {
   const { theme } = useTheme();
+  const { user } = useUser();
   const isDark = theme === "dark";
 
   const baseStyle: React.CSSProperties = {
@@ -84,6 +86,15 @@ const Sidebar: React.FC = () => {
           Tasks
         </NavLink>
         <NavLink
+          to="/training"
+          style={({ isActive }) => ({
+            ...baseStyle,
+            backgroundColor: isActive ? activeBg : "transparent",
+          })}
+        >
+          Training
+        </NavLink>
+        <NavLink
           to="/projects"
           style={({ isActive }) => ({
             ...baseStyle,
@@ -92,15 +103,17 @@ const Sidebar: React.FC = () => {
         >
           Projects
         </NavLink>
-        <NavLink
-          to="/admin"
-          style={({ isActive }) => ({
-            ...baseStyle,
-            backgroundColor: isActive ? activeBg : "transparent",
-          })}
-        >
-          Admin
-        </NavLink>
+        {user?.role === "admin" && (
+          <NavLink
+            to="/admin"
+            style={({ isActive }) => ({
+              ...baseStyle,
+              backgroundColor: isActive ? activeBg : "transparent",
+            })}
+          >
+            Admin
+          </NavLink>
+        )}
         <NavLink
           to="/review"
           style={({ isActive }) => ({

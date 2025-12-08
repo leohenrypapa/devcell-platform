@@ -6,7 +6,6 @@ from pypdf import PdfReader
 from .config import KNOWLEDGE_DIR
 from .client import get_collection
 from .embedder import get_embedder
-from app.schemas.knowledge import KnowledgeSourceChunk
 
 
 def _chunk_text(text: str, max_chars: int = 800) -> List[str]:
