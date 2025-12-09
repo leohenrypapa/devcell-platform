@@ -1,9 +1,6 @@
-from pydantic import BaseModel
 from typing import Optional, List
-import os
 from pathlib import Path
 
-import httpx
 from fastapi import (
     APIRouter,
     Depends,
@@ -11,6 +8,8 @@ from fastapi import (
     UploadFile,
     File,
 )
+from pydantic import BaseModel
+
 from app.schemas.user import UserPublic
 from app.services.auth_service import get_current_user
 from app.schemas.knowledge import (
@@ -18,6 +17,7 @@ from app.schemas.knowledge import (
     KnowledgeQueryResponse,
     AddTextRequest,
     KnowledgeSourceChunk,
+    KnowledgeDocument,
 )
 from app.services.knowledge import (
     query_knowledge,
@@ -25,87 +25,11 @@ from app.services.knowledge import (
     index_single_file,
     list_documents,
     delete_document,
+    KNOWLEDGE_DIR,
 )
-from app.schemas.knowledge import KnowledgeDocument
 from app.core.llm_client import llm_chat
 
-
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
-
-async def call_llm_with_rag(prompt: str) -> str:
-    """
-    Try to call the LLM using multiple common API shapes:
-
-    1) POST /v1/chat/completions  (OpenAI chat)
-    2) POST /v1/completions       (OpenAI text)
-    """
-    base_url = os.getenv("LLM_BASE_URL", "http://localhost:8000")
-    model = os.getenv("LLM_MODEL_NAME", "gpt-4.1-mini")
-    api_key = os.getenv("LLM_API_KEY")
-
-    headers = {"Content-Type": "application/json"}
-    if api_key:
-        headers["Authorization"] = f"Bearer {api_key}"
-
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        # --- 1) Try /v1/chat/completions ---
-        chat_url = f"{base_url.rstrip('/')}/v1/chat/completions"
-        try:
-            chat_resp = await client.post(
-                chat_url,
-                headers=headers,
-                json={
-                    "model": model,
-                    "messages": [
-                        {
-                            "role": "system",
-                            "content": (
-                                "You are an assistant for an internal developer "
-                                "knowledgebase. Use ONLY the provided context when possible."
-                            ),
-                        },
-                        {
-                            "role": "user",
-                            "content": prompt,
-                        },
-                    ],
-                    "temperature": 0.2,
-                },
-            )
-            if chat_resp.status_code != 404:
-                chat_resp.raise_for_status()
-                chat_data = chat_resp.json()
-                return chat_data["choices"][0]["message"]["content"]
-            # if 404, fall through to completions style
-        except httpx.HTTPStatusError as e:
-            # If not 404, propagate (we'll let outer handler fallback to snippets)
-            if e.response is not None and e.response.status_code != 404:
-                raise
-
-        # --- 2) Try /v1/completions ---
-        completions_url = f"{base_url.rstrip('/')}/v1/completions"
-        comp_resp = await client.post(
-            completions_url,
-            headers=headers,
-            json={
-                "model": model,
-                "prompt": prompt,
-                "temperature": 0.2,
-                "max_tokens": 512,
-            },
-        )
-        comp_resp.raise_for_status()
-        comp_data = comp_resp.json()
-        # most completions-style APIs put text here:
-        choice = comp_data["choices"][0]
-        if isinstance(choice, dict):
-            if "text" in choice:
-                return choice["text"]
-            # some still use message
-            if "message" in choice and isinstance(choice["message"], dict):
-                return choice["message"].get("content", "")
-        # fallback: string
-        return str(choice)
 
 
 def build_fallback_answer(sources: List[KnowledgeSourceChunk]) -> str:
@@ -130,8 +54,12 @@ async def query_knowledge_endpoint(
 ):
     """
     Query the knowledgebase using semantic search + LLM answer.
-    Uses the same llm_chat helper as /api/chat, and falls back to
-    stitched snippets if the LLM call fails.
+
+    Pipeline:
+    1) Use app.services.knowledge.query_knowledge(...) to retrieve top-k chunks.
+    2) Build a RAG-style prompt with those chunks as context.
+    3) Call the shared llm_chat() helper.
+    4) If the LLM call fails or returns empty, fall back to stitched snippets.
     """
     # 1) Retrieve relevant chunks from Chroma
     sources: List[KnowledgeSourceChunk] = query_knowledge(
@@ -188,7 +116,7 @@ Instructions:
         answer = (llm_answer or "").strip()
         if not answer:
             answer = build_fallback_answer(sources)
-    except Exception as e:
+    except Exception as e:  # pragma: no cover - defensive
         print(f"[knowledge] LLM call via llm_chat failed, using fallback: {e}")
         answer = build_fallback_answer(sources)
 
@@ -200,6 +128,9 @@ async def add_text_document_endpoint(
     payload: AddTextRequest,
     current_user: UserPublic = Depends(get_current_user),
 ):
+    """
+    Add a free-text note into the knowledgebase and index it into Chroma.
+    """
     if not payload.title.strip():
         raise HTTPException(status_code=400, detail="Title is required.")
     if not payload.text.strip():
@@ -218,7 +149,10 @@ async def upload_file_to_knowledgebase(
     current_user: UserPublic = Depends(get_current_user),
 ):
     """
-    Upload a document (pdf/txt/md) into the Knowledgebase folder and index it.
+    Upload a document (pdf/txt/md) into the knowledgebase folder and index it.
+
+    Uses the same KNOWLEDGE_DIR as the knowledge service so the vector store
+    and filesystem are always in sync.
     """
     allowed_ext = {".pdf", ".txt", ".md"}
     suffix = Path(file.filename).suffix.lower()
@@ -229,18 +163,14 @@ async def upload_file_to_knowledgebase(
             detail="Unsupported file type. Allowed: .pdf, .txt, .md",
         )
 
-    # Save file into Knowledgebase/
-    base_dir = Path(__file__).resolve().parents[2]
-    kb_dir = base_dir / "knowledgebase"
-    kb_dir.mkdir(parents=True, exist_ok=True)
-
-    save_path = kb_dir / file.filename
+    KNOWLEDGE_DIR.mkdir(parents=True, exist_ok=True)
+    save_path = KNOWLEDGE_DIR / file.filename
 
     try:
         with save_path.open("wb") as f:
             content = await file.read()
             f.write(content)
-    except Exception as e:
+    except Exception as e:  # pragma: no cover - filesystem failure
         raise HTTPException(
             status_code=500,
             detail=f"Failed to save file: {e}",
@@ -249,13 +179,14 @@ async def upload_file_to_knowledgebase(
     # Index just this file
     try:
         index_single_file(save_path)
-    except Exception as e:
+    except Exception as e:  # pragma: no cover - indexing failure
         raise HTTPException(
             status_code=500,
             detail=f"Failed to index file: {e}",
         )
 
     return {"status": "ok", "filename": file.filename}
+
 
 @router.get("/documents", response_model=list[KnowledgeDocument])
 async def list_knowledge_documents(
@@ -269,8 +200,8 @@ async def list_knowledge_documents(
 
 
 class DeleteDocumentRequest(BaseModel):
-  title: str
-  path: Optional[str] = None
+    title: str
+    path: Optional[str] = None
 
 
 @router.post("/delete_document")

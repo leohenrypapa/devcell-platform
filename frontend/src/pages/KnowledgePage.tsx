@@ -211,15 +211,17 @@ const KnowledgePage: React.FC = () => {
     if (!confirmed) return;
 
     try {
-      const res = await fetch(
-        `${backendBase}/api/knowledge/documents/${encodeURIComponent(doc.id)}`,
-        {
-          method: "DELETE",
-          headers: {
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
+      const res = await fetch(`${backendBase}/api/knowledge/delete_document`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-      );
+        body: JSON.stringify({
+          title: doc.title,
+          path: doc.path ?? null,
+        }),
+      });
 
       if (!res.ok) {
         const text = await res.text().catch(() => "");
@@ -230,8 +232,7 @@ const KnowledgePage: React.FC = () => {
     } catch (err) {
       // eslint-disable-next-line no-console
       console.error("Delete doc error:", err);
-      // Lightweight UX: you could surface a toast here if you later add one
-      // but we avoid alert-spam for now.
+      // Could surface a toast here if/when you add a global notification system.
     }
   }
 
@@ -248,7 +249,7 @@ const KnowledgePage: React.FC = () => {
       <h1>Knowledgebase</h1>
       <p style={{ fontSize: "0.9rem", opacity: 0.8 }}>
         Ask questions against your indexed documents, add free-text notes, or
-        upload files (PDF, docs, etc.). This page is your mini unit knowledge
+        upload files (PDF, txt, markdown). This page is your mini unit knowledge
         graph.
       </p>
 

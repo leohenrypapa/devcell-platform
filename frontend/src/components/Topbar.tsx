@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 
 import { useTheme } from "../context/ThemeContext";
 import { useUser } from "../context/UserContext";
+import RagStatusChip from "./RagStatusChip";
 
 const Topbar: React.FC = () => {
   const { user, isAuthenticated, logout } = useUser();
@@ -26,6 +27,7 @@ const Topbar: React.FC = () => {
         alignItems: "center",
         justifyContent: "space-between",
         padding: "0 1rem",
+        gap: "1rem",
       }}
     >
       <div
@@ -52,6 +54,12 @@ const Topbar: React.FC = () => {
           {isDark ? "☀ Light" : "🌙 Dark"}
         </button>
       </div>
+
+      {/* RAG Status Chip - center */}
+      <div style={{ flex: 1, display: "flex", justifyContent: "center" }}>
+        <RagStatusChip />
+      </div>
+
       <div style={{ fontSize: "0.9rem", opacity: 0.8 }}>
         {isAuthenticated && user ? (
           <>

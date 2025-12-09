@@ -1,343 +1,229 @@
-# Chat Module
+# Chat Module (LLM + Optional RAG)
 
-The Chat module provides an interface for interacting with the local Large
-Language Model (LLM) through a familiar chat UI. It supports:
+## Overview
+The Chat module provides a single-turn conversational interface backed by the local LLM.  
+RAG is optional and disabled by default unless specified by the user.
 
-- freeform Q&A  
-- technical debugging  
-- writing assistance  
-- contextual conversation with project or KB grounding  
-- RAG-enhanced responses  
-- developer persona modes (optional)  
+All Chat logic is handled by:
+````
 
-This document details the Chat architecture, backend logic, LLM prompt flow,
-frontend UI, and planned enhancements.
-
----
-
-# 🎯 Purpose
-
-The Chat module allows DevCell users to:
-
-- ask questions  
-- obtain LLM-generated assistance  
-- leverage the internal KB (documents + embeddings)  
-- perform retrieval-augmented operations  
-- simulate AI pair-programming for developers  
-
-It functions like an internal, secure ChatGPT—but entirely local.
-
----
-
-# 🧱 Data Model
-
-Currently, the Chat module **does not store chat history in the database**.
-
-Reasons:
-- operational security  
-- lightweight architecture  
-- temporary testing phase  
-
-Future enhancements may include:
-- persistent chat threads  
-- project-scoped chat  
-- shared team chat rooms  
-
----
-
-# 🧩 Backend Architecture
-
-Backend chat logic exists in:
-
-```
-
-routes/chat.py
-services/chat_service.py
-knowledgebase/rag.py
-core/llm_client.py
+backend/app/services/chat_service.py
 
 ````
 
 ---
 
-## 📁 1. Routes (`routes/chat.py`)
-
-Main endpoint:
-
-| Method | Endpoint | Purpose |
-|--------|----------|---------|
-| POST | `/api/chat` | Send user message to LLM (optional RAG) |
-
-Example request payload:
+## Request Schema
 
 ```json
+POST /api/chat
 {
-  "message": "Explain malware loader design",
-  "use_rag": true,
-  "notes": "Focus on defensive analysis"
+  "message": "string",
+  "use_rag": false,
+  "mode": "assistant | developer | analyst | docs | null",
+  "notes": "optional additional instructions"
 }
 ````
 
-Route handles:
+### Modes (Personas)
 
-* authentication
-* optional RAG toggle
-* passing conversation to service
+| Mode      | Behavior                                     |
+| --------- | -------------------------------------------- |
+| assistant | Default general-purpose AI helper            |
+| developer | Code-oriented reasoning, prefers examples    |
+| analyst   | Defensive cyber focus, no offensive guidance |
+| docs      | Structured, markdown-oriented responses      |
 
----
-
-## 🧠 2. Service Layer (`chat_service.py`)
-
-Core responsibilities:
-
-### (1) Message Normalization
-
-* trim whitespace
-* protect against empty queries
-* detect multi-line blocks
-
-### (2) Persona Selection (optional)
-
-Backend can detect context based on:
-
-* developer intent (code blocks)
-* analysis intent (keywords)
-* general chat
-
-Each persona uses a different system prompt.
-
-### (3) RAG Decision
-
-If `use_rag = true`:
-
-1. embed user query
-2. query Chroma
-3. retrieve top chunks
-4. assemble RAG context block
-5. modify the LLM prompt to include KB references
-
-### (4) LLM Interaction
-
-Calls `llm_client.send([...])` with:
-
-```
-system: persona / instructions
-context: optional knowledgebase chunks
-user: message
-```
-
-### (5) Response Formatting
-
-* wrap answer
-* include a "Sources" section if using RAG
-* return JSON to frontend
+If `mode` is omitted → automatic detection based on message content.
 
 ---
 
-# 📚 RAG Workflow (Chat)
+## RAG Behavior
 
-Full sequence diagram:
+If `use_rag=true`:
 
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant CH as Chat Service
-    participant KB as Knowledgebase RAG
-    participant L as LLM Server
+1. System performs `query_knowledge(query, top_k=4)`
+2. If chunks are found:
 
-    U->>CH: message (use_rag = true)
-    CH->>KB: embed + retrieve
-    KB-->>CH: top chunks
-    CH->>L: LLM prompt + context
-    L-->>CH: response text
-    CH-->>U: enriched answer + sources
-```
+   * Context is injected into the prompt
+   * Response includes `"sources": [...]` array
+3. If no chunks:
 
-RAG provides:
+   * Falls back to normal LLM response
 
-* better grounding
-* fewer hallucinations
-* highly relevant responses
+RAG is safe by design:
+
+* No hallucinated citations (sources only included on actual KB hits)
+* KB snippets are shown under each chat message in UI
 
 ---
 
-# 🧠 Persona Profiles
+## Response Schema
 
-The Chat service supports lightweight personas via system prompts:
-
-### **1. General Assistant**
-
-Default.
-
+```json
+{
+  "reply": "string",
+  "mode_used": "assistant | developer | analyst | docs",
+  "used_rag": true,
+  "sources": [
+    {
+      "document_id": "...",
+      "filename": "...",
+      "score": 0.87,
+      "excerpt": "..."
+    }
+  ]
+}
 ```
-Helpful, concise assistant with professional tone.
-```
-
-### **2. Developer Mode**
-
-Triggered by presence of code blocks or terms like “FastAPI”, “React”, “TypeScript”.
-
-```
-Act as a senior software engineer. Provide code, patterns, and architecture.
-```
-
-### **3. Cyber Analyst Mode**
-
-Triggered by terms like “malware”, “analysis”, “TTP”.
-
-```
-Provide defensive, safe, controlled responses for malware analysis.
-```
-
-### **4. Documentation Mode**
-
-Triggered by words like “write explanation”, “summarize”, “document”.
-
-```
-Produce structured, markdown-based documentation.
-```
-
-Personas adjust:
-
-* tone
-* output format
-* safety constraints
 
 ---
 
-# 🖥️ Frontend Architecture
+## Frontend Behavior
 
-Frontend chat lives in:
+* Multi-turn conversation UI (client-side only)
+* RAG toggle button
+* Mode selector
+* Notes field
+* Markdown-friendly display
+* Source blocks shown under assistant messages when RAG is active
 
+````
+
+---
+
+# ✅ **3. Update `docs/modules/02_dashboard.md`**
+
+```md
+# Dashboard Module
+
+## Summary Endpoint
+
+### `GET /api/dashboard/summary`
+Returns a SITREP-style summary of the day’s:
+- Standups
+- Projects
+- Knowledgebase size
+
+### `GET /api/dashboard/summary?use_rag=true`
+RAG-enhanced summary.
+
+When enabled:
+- Standup/project context is passed to the unified Chat pipeline (`chat_with_optional_rag`)
+- KB context may be injected if relevant
+- Output uses the `docs` persona (markdown-friendly)
+
+---
+
+## Returned Shape
+
+```json
+{
+  "summary": "string",
+  "standup_count": 3,
+  "project_count": 2,
+  "knowledge_docs": 14
+}
+````
+
+---
+
+## Frontend Integration
+
+A RAG toggle button appears in the Dashboard UI:
+
+* Off → classic LLM SITREP
+* On → KB-enhanced SITREP
+
+User experience:
+
+* RAG may add relevant KB insights
+* Summary generation remains concise & operational
+
+````
+
+---
+
+# ✅ **4. Add `docs/modules/08_health.md`**
+
+```md
+# Platform Health Checks
+
+## Purpose
+Provide a simple, programmatically accessible way for the UI to determine:
+
+- Is the LLM online?
+- Is the Knowledgebase indexed?
+- Can RAG be used?
+
+Used by the frontend RAG Status Chip in the Topbar.
+
+---
+
+## Endpoints
+
+### `GET /api/health/llm`
+
+Returns:
+
+```json
+{
+  "status": "ok",
+  "detail": null
+}
+````
+
+Or, if failing:
+
+```json
+{
+  "status": "error",
+  "detail": "connection refused"
+}
 ```
-src/pages/ChatPage.tsx
-src/components/ChatInput.tsx
-src/components/ChatMessage.tsx
-src/components/ChatHistory.tsx
-src/lib/chat.ts
+
+---
+
+### `GET /api/health/knowledge`
+
+Returns:
+
+```json
+{
+  "status": "ok",
+  "document_count": 12
+}
 ```
 
-### ChatPage
+If KB empty:
 
-* main chat window
-* state holds visible messages
-* scroll-to-bottom behavior
-* RAG toggle switch
-
-### ChatInput
-
-* text box
-* handles enter/shift+enter
-* maintains multi-line input
-* sends POST to `/api/chat`
-
-### ChatMessage
-
-* renders assistant/user messages
-* code block formatting
-* markdown rendering
-* shows “Sources” section if RAG used
-
-### lib/chat.ts
-
-Implements:
-
-* `sendMessage()`
-* type definitions
-* error reporting
-
----
-
-# 🔐 Permissions
-
-Current system:
-
-* all authenticated users may use Chat
-* no project restrictions
-* no history stored
-
-Future versions may support:
-
-* project-scoped chats
-* team chat rooms
-* admin-moderated logs
-
----
-
-# 🧪 Use Cases
-
-### Technical Support
-
-“Help me debug my Python script.”
-
-### Knowledge Retrieval (RAG)
-
-“What does the malware training roadmap recommend in Week 4?”
-
-### SITREP Assistance
-
-“Draft a mission summary for today.”
-
-### Developer Mode
-
-“Refactor this FastAPI router for clarity.”
-
-### Documentation
-
-“Write module-level documentation for task service.”
-
----
-
-# 🛑 Error Handling
-
-Chat service handles:
-
-* unreachable LLM server
-* invalid RAG chunks
-* empty messages
-* oversized prompts
-
-Graceful fallback:
-
-* disable RAG if KB fails
-* return error message without crashing frontend
-
----
-
-# 🔮 Future Enhancements
-
-### 1. Persistent Chat Threads
-
-Saved per user or per project.
-
-### 2. Project-Scoped AI Agents
-
-Assistants aware of project tasks, standups, and docs.
-
-### 3. Inline Code Execution (sandboxed)
-
-### 4. Conversation Search
-
-### 5. Auto-RAG Enhancement
-
-Model automatically decides when to use the KB.
-
-### 6. Multi-modal support
-
-Images + code snippets.
-
----
-
-# 📚 Related Documents
-
-* LLM Integration → `architecture/llm_integration.md`
-* Knowledgebase Module → `knowledge.md`
-* Dashboard Module → `dashboard.md`
-* Permissions Model → `permissions.md`
-* API Reference → `../api/chat_api.md`
-
----
-
+```json
+{
+  "status": "empty",
+  "document_count": 0
+}
 ```
-© DevCell Platform Documentation — GitHub OSS Style
+
+If error:
+
+```json
+{
+  "status": "error",
+  "document_count": 0,
+  "detail": "..."
+}
 ```
+
+---
+
+## Used by UI
+
+### RagStatusChip
+
+Displayed in the global Topbar:
+
+* **RAG: OK** → LLM + KB both healthy
+* **RAG: KB empty** → No indexed docs
+* **RAG: LLM error** → Local LLM unreachable
+* **RAG: KB error** → Chroma/FS issue
+
+Updates every 60 seconds.
