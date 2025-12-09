@@ -86,78 +86,63 @@ const RagStatusChip: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Basic style rules depending on status
-  let bg = "#eee";
-  let border = "#ccc";
-  let text = "#333";
   let label = "RAG: unknown";
+  let dotColor = "#9ca3af";
+  let borderColor = "var(--dc-border-subtle)";
+  let bgColor = "transparent";
 
   if (combined === "healthy") {
-    bg = "#e3f5e6";
-    border = "#6cc27d";
-    text = "#225c2f";
-    label = "RAG: OK";
+    label = "RAG: Ready";
+    dotColor = "var(--dc-color-success)";
+    borderColor = "rgba(22,163,74,0.5)";
+    bgColor = "rgba(22,163,74,0.06)";
   } else if (combined === "kb_empty") {
-    bg = "#fff6e0";
-    border = "#f2b450";
-    text = "#7a4e00";
     label = "RAG: KB empty";
+    dotColor = "var(--dc-color-warning)";
+    borderColor = "rgba(245,158,11,0.6)";
+    bgColor = "rgba(245,158,11,0.06)";
   } else if (combined === "llm_error") {
-    bg = "#fde5e5";
-    border = "#e26a6a";
-    text = "#7b1111";
     label = "RAG: LLM error";
+    dotColor = "var(--dc-color-danger)";
+    borderColor = "rgba(220,38,38,0.6)";
+    bgColor = "rgba(220,38,38,0.06)";
   } else if (combined === "kb_error") {
-    bg = "#fde5e5";
-    border = "#e26a6a";
-    text = "#7b1111";
     label = "RAG: KB error";
+    dotColor = "var(--dc-color-danger)";
+    borderColor = "rgba(220,38,38,0.6)";
+    bgColor = "rgba(220,38,38,0.06)";
   }
 
   const kbCount = kbStatus?.document_count ?? null;
 
+  const title =
+    llmStatus?.detail || kbStatus?.detail
+      ? `LLM: ${llmStatus?.status}${
+          llmStatus?.detail ? ` (${llmStatus.detail})` : ""
+        }; KB: ${kbStatus?.status}${
+          kbStatus?.detail ? ` (${kbStatus.detail})` : ""
+        }`
+      : "Knowledgebase / LLM status";
+
   return (
     <div
-      title={
-        llmStatus?.detail || kbStatus?.detail
-          ? `LLM: ${llmStatus?.status}${
-              llmStatus?.detail ? ` (${llmStatus.detail})` : ""
-            }; KB: ${kbStatus?.status}${
-              kbStatus?.detail ? ` (${kbStatus.detail})` : ""
-            }`
-          : "Knowledgebase/LLM status"
-      }
+      title={title}
+      className="dc-badge"
       style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: "0.35rem",
-        padding: "0.2rem 0.6rem",
-        borderRadius: 999,
-        border: `1px solid ${border}`,
-        backgroundColor: bg,
-        color: text,
-        fontSize: "0.75rem",
+        borderColor,
+        backgroundColor: bgColor,
         cursor: loading ? "wait" : "default",
-        whiteSpace: "nowrap",
       }}
     >
       <span
+        className="dc-badge-dot"
         style={{
-          display: "inline-block",
-          width: 8,
-          height: 8,
-          borderRadius: "50%",
-          backgroundColor:
-            combined === "healthy"
-              ? "#33aa4e"
-              : combined === "kb_empty"
-              ? "#f2b450"
-              : "#e26a6a",
+          backgroundColor: dotColor,
         }}
       />
       <span>{label}</span>
       {kbCount !== null && (
-        <span style={{ opacity: 0.8 }}>(KB docs: {kbCount})</span>
+        <span style={{ opacity: 0.8 }}>(KB: {kbCount})</span>
       )}
     </div>
   );

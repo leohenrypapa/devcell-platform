@@ -1,31 +1,22 @@
-// filename: frontend/src/App.tsx
+// frontend/src/App.tsx
 import React from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 
 import Layout from "./components/Layout";
 import { ThemeProvider } from "./context/ThemeContext";
-import { useUser } from "./context/UserContext";
-import AdminPage from "./pages/AdminPage";
-import ChatPage from "./pages/ChatPage";
-import CodeReviewPage from "./pages/CodeReviewPage";
-import DashboardPage from "./pages/DashboardPage";
-import KnowledgePage from "./pages/KnowledgePage";
 import LoginPage from "./pages/LoginPage";
 import ProfilePage from "./pages/ProfilePage";
-import ProjectsPage from "./pages/ProjectsPage";
 import RegisterPage from "./pages/RegisterPage";
-import StandupPage from "./pages/StandupPage";
-import TasksPage from "./pages/TasksPage";
-import TrainingPage from "./pages/TrainingPage";
+import ProtectedRoute from "./router/ProtectedRoute";
+import { appRoutes } from "./router/Routes";
+
+// NEW: global tokens + layout styles
+import "./styles/theme.css";
 
 const App: React.FC = () => {
-  const { isAuthenticated, user } = useUser();
   const location = useLocation();
-
   const isAuthEntryPage =
     location.pathname === "/login" || location.pathname === "/register";
-
-  const isAdmin = isAuthenticated && user?.role === "admin";
 
   const authRoutes = (
     <Routes>
@@ -38,69 +29,26 @@ const App: React.FC = () => {
   const mainRoutes = (
     <Layout>
       <Routes>
-        <Route
-          path="/"
-          element={
-            isAuthenticated ? <DashboardPage /> : <Navigate to="/login" replace />
+        {appRoutes.map(({ path, element, protected: isProtected, adminOnly }) => {
+          if (isProtected || adminOnly) {
+            return (
+              <Route
+                key={path}
+                path={path}
+                element={
+                  <ProtectedRoute
+                    requireAdmin={Boolean(adminOnly)}
+                    element={element}
+                  />
+                }
+              />
+            );
           }
-        />
-        <Route
-          path="/chat"
-          element={isAuthenticated ? <ChatPage /> : <Navigate to="/login" replace />}
-        />
-        <Route
-          path="/knowledge"
-          element={
-            isAuthenticated ? <KnowledgePage /> : <Navigate to="/login" replace />
-          }
-        />
-        <Route
-          path="/standup"
-          element={
-            isAuthenticated ? <StandupPage /> : <Navigate to="/login" replace />
-          }
-        />
-        <Route
-          path="/tasks"
-          element={isAuthenticated ? <TasksPage /> : <Navigate to="/login" replace />}
-        />
-        <Route
-          path="/projects"
-          element={
-            isAuthenticated ? <ProjectsPage /> : <Navigate to="/login" replace />
-          }
-        />
-        <Route
-          path="/review"
-          element={
-            isAuthenticated ? <CodeReviewPage /> : <Navigate to="/login" replace />
-          }
-        />
-        <Route
-          path="/profile"
-          element={
-            isAuthenticated ? <ProfilePage /> : <Navigate to="/login" replace />
-          }
-        />
-        <Route
-          path="/training"
-          element={
-            isAuthenticated ? <TrainingPage /> : <Navigate to="/login" replace />
-          }
-        />
-        <Route
-          path="/admin"
-          element={
-            isAdmin ? (
-              <AdminPage />
-            ) : isAuthenticated ? (
-              <Navigate to="/" replace />
-            ) : (
-              <Navigate to="/login" replace />
-            )
-          }
-        />
 
+          return <Route key={path} path={path} element={element} />;
+        })}
+
+        <Route path="/profile" element={<ProfilePage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>

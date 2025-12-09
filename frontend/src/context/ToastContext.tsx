@@ -43,12 +43,12 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({
   const getBackground = (type: ToastType): string => {
     switch (type) {
       case "success":
-        return "#16a34a"; // green
+        return "var(--dc-color-success)";
       case "error":
-        return "#b91c1c"; // red
+        return "var(--dc-color-danger)";
       case "info":
       default:
-        return "#2563eb"; // blue
+        return "var(--dc-color-primary)";
     }
   };
 
@@ -76,15 +76,35 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({
             style={{
               minWidth: "220px",
               maxWidth: "360px",
-              padding: "0.5rem 0.75rem",
-              borderRadius: "6px",
+              padding: "0.6rem 0.9rem",
+              borderRadius: "var(--dc-radius-sm)",
               color: "#ffffff",
               backgroundColor: getBackground(t.type),
-              boxShadow: "0 2px 8px rgba(0,0,0,0.25)",
-              fontSize: "0.85rem",
+              boxShadow: "var(--dc-shadow-md)",
+              fontSize: "var(--dc-font-size-sm)",
+              display: "flex",
+              alignItems: "flex-start",
+              justifyContent: "space-between",
+              gap: "0.5rem",
             }}
           >
-            {t.message}
+            <span>{t.message}</span>
+            <button
+              type="button"
+              onClick={() => removeToast(t.id)}
+              aria-label="Dismiss notification"
+              style={{
+                background: "transparent",
+                border: "none",
+                color: "inherit",
+                cursor: "pointer",
+                padding: 0,
+                fontSize: "var(--dc-font-size-sm)",
+                opacity: 0.8,
+              }}
+            >
+              ×
+            </button>
           </div>
         ))}
       </div>
@@ -95,7 +115,6 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({
 export const useToast = (): ToastContextValue => {
   const ctx = useContext(ToastContext);
   if (!ctx) {
-    // Failsafe: don’t crash if provider is missing, just log
     console.warn("useToast called outside of ToastProvider");
     return {
       showToast: (msg: string) => {

@@ -1,411 +1,274 @@
 // filename: frontend/src/pages/ChatPage.tsx
-import React, { useState, useRef, useEffect } from "react";
+import React from "react";
 import { useUser } from "../context/UserContext";
 
-const backendBase =
-  (import.meta as any).env.VITE_BACKEND_BASE_URL || "http://localhost:9000";
-
-type ChatSource = {
-  document_id: string;
-  filename: string;
-  score: number;
-  excerpt: string;
-};
-
-type ChatApiResponse = {
-  reply: string;
-  mode_used: string;
-  used_rag: boolean;
-  sources: ChatSource[];
-};
-
-type ChatRole = "user" | "assistant";
-
-type ChatMessage = {
-  id: number;
-  role: ChatRole;
-  content: string;
-  modeUsed?: string;
-  usedRag?: boolean;
-  sources?: ChatSource[];
-};
+import { useChat } from "../features/chat/useChat";
+import ChatMessageList from "../features/chat/ChatMessageList";
+import ChatInputSection from "../features/chat/ChatInputSection";
 
 const ChatPage: React.FC = () => {
-  const { token } = useUser();
+  const { isAuthenticated } = useUser();
+  const {
+    prompt,
+    setPrompt,
+    messages,
+    isLoading,
+    error,
+    useRag,
+    setUseRag,
+    mode,
+    setMode,
+    notes,
+    setNotes,
+    canSubmit,
+    sendMessage,
+    clearMessages,
+  } = useChat();
 
-  const [prompt, setPrompt] = useState("");
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-
-  const [useRag, setUseRag] = useState<boolean>(false);
-  const [mode, setMode] = useState<string>("");
-  const [notes, setNotes] = useState<string>("");
-
-  const nextIdRef = useRef(1);
-  const bottomRef = useRef<HTMLDivElement | null>(null);
-
-  const canSubmit = prompt.trim().length > 0 && !isLoading;
-
-  const scrollToBottom = () => {
-    if (bottomRef.current) {
-      bottomRef.current.scrollIntoView({ behavior: "smooth" });
-    }
-  };
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages.length]);
-
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    const trimmed = prompt.trim();
-    if (!trimmed || isLoading) return;
-
-    setIsLoading(true);
-    setError(null);
-
-    const userMessageId = nextIdRef.current++;
-    const assistantMessageId = nextIdRef.current++;
-
-    // Add user message to conversation
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: userMessageId,
-        role: "user",
-        content: trimmed,
-      },
-    ]);
-
-    try {
-      const body = {
-        message: trimmed,
-        use_rag: useRag,
-        mode: mode || null,
-        notes: notes.trim() || null,
-      };
-
-      const res = await fetch(`${backendBase}/api/chat`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify(body),
-      });
-
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(text || `HTTP ${res.status}`);
-      }
-
-      const data: ChatApiResponse = await res.json();
-
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: assistantMessageId,
-          role: "assistant",
-          content: data.reply,
-          modeUsed: data.mode_used,
-          usedRag: data.used_rag,
-          sources: data.sources || [],
-        },
-      ]);
-
-      // Clear prompt, keep RAG/mode/notes so user can iterate
-      setPrompt("");
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error("Chat error:", err);
-      setError("Failed to get a response from the chat backend.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handlePromptChange = (
-    event: React.ChangeEvent<HTMLTextAreaElement>,
-  ) => {
-    setPrompt(event.target.value);
-  };
-
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault();
-      if (canSubmit) {
-        void handleSubmit(event as unknown as React.FormEvent);
-      }
-    }
-  };
+  const hasMessages = messages.length > 0;
 
   return (
-    <div
-      style={{
-        maxWidth: 900,
-        margin: "0 auto",
-        padding: "1.5rem 1rem",
-        display: "flex",
-        flexDirection: "column",
-        height: "calc(100vh - 80px)",
-      }}
-    >
-      <header style={{ marginBottom: "0.5rem" }}>
-        <h1 style={{ marginBottom: "0.25rem" }}>DevCell LLM Chat</h1>
-        <p style={{ fontSize: "0.9rem", opacity: 0.8 }}>
-          Internal chat with your local DevCell LLM. No server-side history — the
-          conversation you see here is kept only in your browser. You can
-          optionally enable Knowledgebase (RAG) context.
-        </p>
-      </header>
-
-      {/* Conversation area */}
-      <main
+    <div className="dc-page">
+      <div
+        className="dc-page-inner"
         style={{
-          flex: 1,
-          minHeight: 0,
-          border: "1px solid #ccc",
-          borderRadius: 6,
-          padding: "0.75rem",
-          overflowY: "auto",
-          background: "#fafafa",
+          display: "flex",
+          flexDirection: "column",
+          gap: "0.75rem",
+          height: "calc(100vh - 80px)",
+          padding: "1.25rem 1rem",
         }}
       >
-        {messages.length === 0 ? (
-          <p style={{ fontSize: "0.9rem", opacity: 0.7 }}>
-            No messages yet. Ask your first question below.
-          </p>
-        ) : (
-          <ul
-            style={{
-              listStyle: "none",
-              paddingLeft: 0,
-              margin: 0,
-            }}
-          >
-            {messages.map((msg) => (
-              <li
-                key={msg.id}
-                style={{
-                  marginBottom: "0.75rem",
-                  display: "flex",
-                  justifyContent:
-                    msg.role === "user" ? "flex-end" : "flex-start",
-                }}
-              >
-                <div
-                  style={{
-                    maxWidth: "80%",
-                    padding: "0.6rem 0.75rem",
-                    borderRadius: 8,
-                    backgroundColor:
-                      msg.role === "user" ? "#d8e9ff" : "#ffffff",
-                    border:
-                      msg.role === "user"
-                        ? "1px solid #a7c7ff"
-                        : "1px solid #ddd",
-                    boxShadow: "0 1px 2px rgba(0,0,0,0.03)",
-                    whiteSpace: "pre-wrap",
-                    fontSize: "0.9rem",
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: "0.75rem",
-                      fontWeight: 600,
-                      marginBottom: "0.25rem",
-                      opacity: 0.8,
-                    }}
-                  >
-                    {msg.role === "user" ? "You" : "Assistant"}
-                    {msg.role === "assistant" && msg.modeUsed && (
-                      <>
-                        {" "}
-                        · <span>{msg.modeUsed}</span>
-                        {msg.usedRag && (
-                          <span style={{ marginLeft: "0.25rem" }}>· RAG</span>
-                        )}
-                      </>
-                    )}
-                  </div>
-                  <div>{msg.content}</div>
-
-                  {msg.role === "assistant" &&
-                    msg.usedRag &&
-                    msg.sources &&
-                    msg.sources.length > 0 && (
-                      <div
-                        style={{
-                          marginTop: "0.5rem",
-                          borderTop: "1px solid #eee",
-                          paddingTop: "0.35rem",
-                        }}
-                      >
-                        <div
-                          style={{
-                            fontSize: "0.8rem",
-                            fontWeight: 600,
-                            marginBottom: "0.25rem",
-                          }}
-                        >
-                          Sources
-                        </div>
-                        <ul
-                          style={{
-                            listStyle: "none",
-                            paddingLeft: 0,
-                            margin: 0,
-                            fontSize: "0.8rem",
-                          }}
-                        >
-                          {msg.sources.map((src) => (
-                            <li
-                              key={src.document_id}
-                              style={{ marginBottom: "0.35rem" }}
-                            >
-                              <strong>{src.filename}</strong>{" "}
-                              <span style={{ opacity: 0.7 }}>
-                                (score {src.score.toFixed(3)})
-                              </span>
-                              <div
-                                style={{
-                                  marginTop: "0.15rem",
-                                  opacity: 0.85,
-                                }}
-                              >
-                                {src.excerpt}
-                              </div>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-        <div ref={bottomRef} />
-      </main>
-
-      {/* Input area */}
-      <form
-        onSubmit={handleSubmit}
-        aria-busy={isLoading}
-        style={{
-          marginTop: "0.75rem",
-          borderTop: "1px solid #ddd",
-          paddingTop: "0.75rem",
-        }}
-      >
-        <label
-          htmlFor="chat-prompt"
-          style={{ display: "block", marginBottom: "0.25rem" }}
-        >
-          Prompt
-        </label>
-        <textarea
-          id="chat-prompt"
-          value={prompt}
-          onChange={handlePromptChange}
-          onKeyDown={handleKeyDown}
-          rows={3}
-          style={{
-            width: "100%",
-            resize: "vertical",
-            padding: "0.5rem",
-            fontFamily: "inherit",
-          }}
-          placeholder="Ask your DevCell model anything… (Enter to send, Shift+Enter for new line)"
-        />
-
-        {/* Controls row */}
-        <div
+        {/* Page header */}
+        <header
           style={{
             display: "flex",
-            flexWrap: "wrap",
-            gap: "0.75rem",
-            marginTop: "0.5rem",
-            alignItems: "center",
+            alignItems: "flex-start",
+            justifyContent: "space-between",
+            gap: "1rem",
           }}
         >
-          <label style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
-            <input
-              type="checkbox"
-              checked={useRag}
-              onChange={(e) => setUseRag(e.target.checked)}
-            />
-            <span style={{ fontSize: "0.85rem" }}>
-              Use Knowledgebase (RAG)
-            </span>
-          </label>
-
-          <label style={{ fontSize: "0.85rem" }}>
-            Mode:&nbsp;
-            <select
-              value={mode}
-              onChange={(e) => setMode(e.target.value)}
-              style={{ fontSize: "0.85rem" }}
+          <div>
+            <h1
+              style={{
+                margin: 0,
+                fontSize: "1.4rem",
+              }}
             >
-              <option value="">Auto</option>
-              <option value="assistant">Assistant</option>
-              <option value="developer">Developer</option>
-              <option value="analyst">Analyst</option>
-              <option value="docs">Docs</option>
-            </select>
-          </label>
-        </div>
+              DevCell LLM Chat
+            </h1>
+            <p
+              style={{
+                marginTop: "0.25rem",
+                fontSize: "0.9rem",
+                opacity: 0.85,
+                maxWidth: 640,
+              }}
+            >
+              Internal chat with your local DevCell LLM. No server-side history
+              — the conversation is kept only in your browser. Optionally enable
+              Knowledgebase (RAG) to ground answers in your internal docs.
+            </p>
 
-        {/* Notes */}
-        <div style={{ marginTop: "0.5rem" }}>
-          <label
-            htmlFor="chat-notes"
-            style={{ display: "block", marginBottom: "0.25rem" }}
-          >
-            Extra instructions (optional)
-          </label>
-          <input
-            id="chat-notes"
-            type="text"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="e.g., Focus on FastAPI, be concise, bullet points only…"
-            style={{
-              width: "100%",
-              padding: "0.4rem",
-              fontSize: "0.85rem",
-            }}
-          />
-        </div>
+            {!isAuthenticated && (
+              <p
+                style={{
+                  marginTop: "0.25rem",
+                  fontSize: "0.85rem",
+                  color: "var(--dc-danger-text, #b00020)",
+                }}
+              >
+                You are not signed in. Sign in so your actions are associated
+                with your user account.
+              </p>
+            )}
+          </div>
 
-        <div style={{ marginTop: "0.5rem" }}>
-          <button type="submit" disabled={!canSubmit}>
-            {isLoading ? "Sending…" : "Send"}
-          </button>
-          <span
-            style={{
-              marginLeft: "0.75rem",
-              fontSize: "0.8rem",
-              opacity: 0.7,
-            }}
-          >
-            Tip: include project name, mission context, and expected format.
-          </span>
-        </div>
-
-        {error && (
           <div
             style={{
-              marginTop: "0.5rem",
-              color: "red",
-              fontSize: "0.9rem",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "flex-end",
+              gap: "0.25rem",
+              fontSize: "0.8rem",
             }}
           >
-            {error}
+            <button
+              type="button"
+              onClick={clearMessages}
+              disabled={!hasMessages}
+              style={{
+                padding: "0.35rem 0.75rem",
+                borderRadius: "999px",
+                border: "1px solid var(--dc-border-subtle, #d0d7de)",
+                background:
+                  hasMessages
+                    ? "var(--dc-surface-subtle, #f6f8fa)"
+                    : "var(--dc-surface-muted, #f3f4f6)",
+                cursor: hasMessages ? "pointer" : "not-allowed",
+                fontSize: "0.8rem",
+              }}
+            >
+              Clear conversation
+            </button>
+            <span
+              style={{
+                opacity: 0.7,
+              }}
+            >
+              Local-only · No external APIs
+            </span>
           </div>
-        )}
-      </form>
+        </header>
+
+        {/* Main content area: chat + side info */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "minmax(0, 2.1fr) minmax(0, 1fr)",
+            gap: "1rem",
+            flex: 1,
+            minHeight: 0,
+          }}
+        >
+          {/* Conversation column */}
+          <section
+            aria-label="Chat conversation"
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              minHeight: 0,
+              border: "1px solid var(--dc-border-subtle, #d0d7de)",
+              borderRadius: "var(--dc-radius-lg, 10px)",
+              background: "var(--dc-surface-card, #ffffff)",
+              boxShadow: "var(--dc-shadow-sm, 0 1px 2px rgba(0,0,0,0.03))",
+              padding: "0.75rem",
+            }}
+          >
+            <div
+              style={{
+                flex: 1,
+                minHeight: 0,
+                display: "flex",
+                flexDirection: "column",
+              }}
+            >
+              <ChatMessageList messages={messages} />
+            </div>
+
+            <div
+              style={{
+                marginTop: "0.5rem",
+              }}
+            >
+              <ChatInputSection
+                prompt={prompt}
+                setPrompt={setPrompt}
+                isLoading={isLoading}
+                canSubmit={canSubmit}
+                error={error}
+                useRag={useRag}
+                setUseRag={setUseRag}
+                mode={mode}
+                setMode={setMode}
+                notes={notes}
+                setNotes={setNotes}
+                onSend={sendMessage}
+              />
+            </div>
+          </section>
+
+          {/* Side panel: modes, RAG, tips */}
+          <aside
+            aria-label="Chat context and tips"
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "0.75rem",
+              minHeight: 0,
+            }}
+          >
+            <section
+              style={{
+                border: "1px solid var(--dc-border-subtle, #d0d7de)",
+                borderRadius: "var(--dc-radius-lg, 10px)",
+                background: "var(--dc-surface-subtle, #f9fafb)",
+                padding: "0.75rem 0.9rem",
+                fontSize: "0.85rem",
+              }}
+            >
+              <h2
+                style={{
+                  margin: 0,
+                  marginBottom: "0.35rem",
+                  fontSize: "0.95rem",
+                }}
+              >
+                Modes &amp; Knowledgebase
+              </h2>
+              <ul
+                style={{
+                  margin: 0,
+                  paddingLeft: "1.15rem",
+                  lineHeight: 1.4,
+                }}
+              >
+                <li>
+                  <strong>Mode</strong>: pick <em>assistant</em>,{" "}
+                  <em>developer</em>, <em>analyst</em>, or{" "}
+                  <em>docs</em> for more targeted behavior. Leave empty for
+                  auto.
+                </li>
+                <li>
+                  <strong>Use Knowledgebase (RAG)</strong>: grounds answers in
+                  your uploaded documents.
+                </li>
+                <li>
+                  <strong>Extra instructions</strong>: add style or constraints
+                  like “bullet points only”, “reference task IDs”, etc.
+                </li>
+              </ul>
+            </section>
+
+            <section
+              style={{
+                border: "1px solid var(--dc-border-subtle, #d0d7de)",
+                borderRadius: "var(--dc-radius-lg, 10px)",
+                background: "var(--dc-surface-card, #ffffff)",
+                padding: "0.75rem 0.9rem",
+                fontSize: "0.85rem",
+              }}
+            >
+              <h2
+                style={{
+                  margin: 0,
+                  marginBottom: "0.35rem",
+                  fontSize: "0.95rem",
+                }}
+              >
+                Suggested prompts
+              </h2>
+              <ul
+                style={{
+                  margin: 0,
+                  paddingLeft: "1.15rem",
+                  lineHeight: 1.4,
+                }}
+              >
+                <li>
+                  “Summarize my last standups into a SITREP-style brief.”
+                </li>
+                <li>
+                  “Review this function for security issues and suggest fixes.”
+                </li>
+                <li>
+                  “From the knowledgebase, list docs relevant to &lt;project&gt;.”
+                </li>
+              </ul>
+            </section>
+          </aside>
+        </div>
+      </div>
     </div>
   );
 };

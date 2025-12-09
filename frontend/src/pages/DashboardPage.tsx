@@ -1,207 +1,200 @@
-// filename: frontend/src/pages/DashboardPage.tsx
-import React, { useEffect, useState } from "react";
-import { useUser } from "../context/UserContext";
+// frontend/src/pages/DashboardPage.tsx
+import React from "react";
 
-const backendBase =
-  (import.meta as any).env.VITE_BACKEND_BASE_URL || "http://localhost:9000";
-
-type DashboardSummary = {
-  summary: string;
-  standup_count: number;
-  project_count: number;
-  knowledge_docs: number;
-};
+import DashboardHeader from "../features/dashboard/DashboardHeader";
+import DashboardSummaryCard from "../features/dashboard/DashboardSummaryCard";
+import { useDashboardSummary } from "../features/dashboard/useDashboardSummary";
+import DashboardSection from "../features/dashboard/DashboardSection";
+import Card from "../ui/Card";
+import DashboardActivityPanel from "../features/dashboard/DashboardActivityPanel";
+import DashboardSitrepCard from "../features/dashboard/DashboardSitrepCard";
 
 const DashboardPage: React.FC = () => {
-  const { token } = useUser();
+  const { data, loading, error, useRag, setUseRag, refresh, lastUpdated } =
+    useDashboardSummary();
 
-  const [data, setData] = useState<DashboardSummary | null>(null);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const [useRag, setUseRag] = useState<boolean>(false);
-
-  const fetchSummary = async (rag: boolean) => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      const url = new URL(`${backendBase}/api/dashboard/summary`);
-      url.searchParams.set("use_rag", String(rag));
-
-      const res = await fetch(url.toString(), {
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-      });
-
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(text || `HTTP ${res.status}`);
-      }
-
-      const json: DashboardSummary = await res.json();
-      setData(json);
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error("Failed to load dashboard summary:", err);
-      setError("Failed to load dashboard summary.");
-      setData(null);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // initial load
-  useEffect(() => {
-    void fetchSummary(useRag);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const handleToggleRag = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const next = event.target.checked;
+  const handleToggleRag = (next: boolean) => {
     setUseRag(next);
-    void fetchSummary(next);
+    refresh(next);
   };
 
-  const handleRefresh = () => {
-    void fetchSummary(useRag);
-  };
+  const standupCount = data?.standup_count ?? 0;
+  const projectCount = data?.project_count ?? 0;
+  const kbDocsCount = data?.knowledge_docs ?? 0;
+
+  const formattedLastUpdated =
+    lastUpdated != null
+      ? new Date(lastUpdated).toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : null;
 
   return (
-    <div
-      style={{
-        maxWidth: 900,
-        margin: "0 auto",
-        padding: "1.5rem 1rem",
-      }}
-    >
-      <header
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: "0.5rem",
-          marginBottom: "1rem",
-        }}
-      >
-        <h1 style={{ margin: 0 }}>DevCell Dashboard</h1>
-        <p style={{ fontSize: "0.9rem", opacity: 0.8, margin: 0 }}>
-          High-level SITREP-style summary of today&apos;s activity — standups,
-          projects, and knowledgebase. You can optionally enrich this summary
-          with Knowledgebase (RAG) context.
-        </p>
+    <div className="dc-page">
+      <div className="dc-page-inner">
+        <DashboardHeader
+          useRag={useRag}
+          loading={loading}
+          onToggleRag={handleToggleRag}
+          onRefresh={() => refresh()}
+        />
 
         <div
           style={{
             display: "flex",
-            flexWrap: "wrap",
-            gap: "0.75rem",
-            alignItems: "center",
-            marginTop: "0.25rem",
+            flexDirection: "column",
+            gap: "1rem",
+            marginBottom: "1rem",
           }}
         >
-          <label
+          {/* My Today / high-level snapshot */}
+          <DashboardSection
+            title="My Today"
+            description="Quick view of unit activity and knowledge health. Detailed task, standup, and training panels are below."
+          >
+            <Card>
+              {loading && (
+                <p
+                  style={{
+                    fontSize: "var(--dc-font-size-sm)",
+                    color: "var(--dc-text-muted)",
+                  }}
+                >
+                  Loading today&apos;s overview…
+                </p>
+              )}
+
+              {!loading && error && (
+                <p
+                  style={{
+                    fontSize: "var(--dc-font-size-sm)",
+                    color: "var(--dc-color-danger)",
+                  }}
+                >
+                  {error}
+                </p>
+              )}
+
+              {!loading && !error && (
+                <>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns:
+                        "repeat(auto-fit, minmax(160px, 1fr))",
+                      gap: "0.75rem",
+                      marginBottom: "0.5rem",
+                    }}
+                  >
+                    <TodayStat
+                      label="Standup activity"
+                      value={
+                        standupCount > 0
+                          ? `${standupCount} recent entries`
+                          : "No recent standups"
+                      }
+                    />
+                    <TodayStat
+                      label="Projects in focus"
+                      value={
+                        projectCount > 0
+                          ? `${projectCount} active projects`
+                          : "No visible projects yet"
+                      }
+                    />
+                    <TodayStat
+                      label="Knowledgebase docs"
+                      value={
+                        kbDocsCount > 0
+                          ? `${kbDocsCount} documents indexed`
+                          : "KB is still empty"
+                      }
+                    />
+                  </div>
+                  {formattedLastUpdated && (
+                    <p
+                      style={{
+                        margin: 0,
+                        fontSize: "var(--dc-font-size-xs)",
+                        color: "var(--dc-text-muted)",
+                      }}
+                    >
+                      Updated at {formattedLastUpdated}
+                    </p>
+                  )}
+                </>
+              )}
+            </Card>
+          </DashboardSection>
+
+          {/* Main grid: summary + activity */}
+          <div
             style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "0.35rem",
-              fontSize: "0.85rem",
+              display: "grid",
+              gridTemplateColumns: "minmax(0, 2.2fr) minmax(0, 1.4fr)",
+              gap: "1rem",
             }}
           >
-            <input
-              type="checkbox"
-              checked={useRag}
-              onChange={handleToggleRag}
-            />
-            <span>Use Knowledgebase (RAG)</span>
-          </label>
-
-          <button type="button" onClick={handleRefresh} disabled={loading}>
-            {loading ? "Refreshing…" : "Refresh"}
-          </button>
-
-          {useRag && (
-            <span
-              style={{
-                fontSize: "0.8rem",
-                opacity: 0.7,
-              }}
+            <DashboardSection
+              title="Operational summary"
+              description="LLM-generated snapshot combining standups, tasks, projects, and knowledgebase context."
             >
-              RAG enabled: summary may include extra context from KB documents.
-            </span>
-          )}
-        </div>
-      </header>
+              <DashboardSummaryCard
+                data={data}
+                loading={loading}
+                error={error}
+              />
+            </DashboardSection>
 
-      {error && (
-        <div
-          style={{
-            marginBottom: "0.75rem",
-            color: "red",
-            fontSize: "0.9rem",
-          }}
-        >
-          {error}
-        </div>
-      )}
+            <DashboardSection
+              title="Activity snapshot"
+              description="Recent tasks, standups, projects, and training progress."
+            >
+              <DashboardActivityPanel data={data} loading={loading} />
+            </DashboardSection>
+          </div>
 
-      <section
-        aria-label="Dashboard summary"
+          {/* SITREP generator */}
+          <DashboardSection
+            title="SITREP"
+            description="Generate a briefing-ready operational report suitable for leadership updates, IPRs, or daily rollups."
+          >
+            <DashboardSitrepCard useRag={useRag} />
+          </DashboardSection>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+type TodayStatProps = {
+  label: string;
+  value: string;
+};
+
+const TodayStat: React.FC<TodayStatProps> = ({ label, value }) => {
+  return (
+    <div>
+      <div
         style={{
-          border: "1px solid #ccc",
-          borderRadius: 6,
-          padding: "1rem",
-          minHeight: "150px",
-          background: "#fafafa",
+          fontSize: "var(--dc-font-size-xs)",
+          textTransform: "uppercase",
+          letterSpacing: "0.08em",
+          color: "var(--dc-text-muted)",
+          marginBottom: "0.25rem",
         }}
       >
-        <h2 style={{ marginTop: 0, marginBottom: "0.5rem" }}>Summary</h2>
-
-        {loading && !data && (
-          <p style={{ fontSize: "0.9rem", opacity: 0.75 }}>Loading…</p>
-        )}
-
-        {data && (
-          <>
-            <div
-              style={{
-                fontSize: "0.9rem",
-                marginBottom: "0.75rem",
-                whiteSpace: "pre-wrap",
-              }}
-            >
-              {data.summary}
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: "0.75rem",
-                fontSize: "0.85rem",
-                opacity: 0.85,
-              }}
-            >
-              <div>
-                <strong>Standups:</strong> {data.standup_count}
-              </div>
-              <div>
-                <strong>Projects:</strong> {data.project_count}
-              </div>
-              <div>
-                <strong>Knowledgebase docs:</strong> {data.knowledge_docs}
-              </div>
-            </div>
-          </>
-        )}
-
-        {!loading && !data && !error && (
-          <p style={{ fontSize: "0.9rem", opacity: 0.75 }}>
-            No summary available yet.
-          </p>
-        )}
-      </section>
+        {label}
+      </div>
+      <div
+        style={{
+          fontSize: "var(--dc-font-size-sm)",
+          fontWeight: 500,
+        }}
+      >
+        {value}
+      </div>
     </div>
   );
 };

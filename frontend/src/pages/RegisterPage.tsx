@@ -1,7 +1,11 @@
+// filename: frontend/src/pages/RegisterPage.tsx
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useUser } from "../context/UserContext";
 import { BACKEND_BASE } from "../lib/backend";
+import Card from "../ui/Card";
+import Button from "../ui/Button";
+import PageHeader from "../ui/PageHeader";
 
 const RegisterPage: React.FC = () => {
   const { setUserAndToken } = useUser();
@@ -18,11 +22,13 @@ const RegisterPage: React.FC = () => {
     skills: "",
   });
 
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const onChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => {
     const { name, value } = e.target;
     setForm((f) => ({ ...f, [name]: value }));
@@ -74,114 +80,433 @@ const RegisterPage: React.FC = () => {
   };
 
   return (
-    <div style={{ maxWidth: 480, margin: "2rem auto" }}>
-      <h1>Create Account</h1>
-      <p style={{ fontSize: "0.9rem", opacity: 0.8 }}>
-        Register as a new user. You will start with role{" "}
-        <strong>user</strong> (unless you are the very first user, in which case
-        you become <strong>admin</strong>).
-      </p>
-
-      {error && <p style={{ color: "red" }}>{error}</p>}
-
-      <form
-        onSubmit={onSubmit}
+    <div
+      className="dc-page dc-page-auth"
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "2rem",
+        backgroundColor: "var(--dc-bg-body)",
+      }}
+    >
+      <div
+        className="dc-page-inner"
         style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: "0.5rem",
+          width: "100%",
+          maxWidth: "520px",
         }}
       >
-        <label>
-          Username
-          <input
-            name="username"
-            value={form.username}
-            onChange={onChange}
-            required
+        <Card
+          style={{
+            padding: "1.75rem",
+          }}
+        >
+          <PageHeader
+            title="Create your DevCell account"
+            description="New users start as regular users. The very first user created becomes an admin."
           />
-        </label>
 
-        <label>
-          Password
-          <input
-            type="password"
-            name="password"
-            value={form.password}
-            onChange={onChange}
-            required
-          />
-        </label>
+          <form
+            onSubmit={onSubmit}
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "1rem",
+            }}
+          >
+            {error && (
+              <div
+                style={{
+                  padding: "0.6rem 0.75rem",
+                  borderRadius: "var(--dc-radius-sm)",
+                  fontSize: "var(--dc-font-size-xs)",
+                  backgroundColor: "var(--dc-bg-danger-subtle)",
+                  color: "var(--dc-text-danger)",
+                }}
+              >
+                {error}
+              </div>
+            )}
 
-        <label>
-          Confirm Password
-          <input
-            type="password"
-            name="confirmPassword"
-            value={form.confirmPassword}
-            onChange={onChange}
-            required
-          />
-        </label>
+            {/* Account section */}
+            <section>
+              <h2
+                style={{
+                  margin: 0,
+                  marginBottom: "0.5rem",
+                  fontSize: "var(--dc-font-size-sm)",
+                  fontWeight: 600,
+                }}
+              >
+                Account
+              </h2>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.75rem",
+                }}
+              >
+                <div>
+                  <label
+                    htmlFor="username"
+                    style={{
+                      display: "block",
+                      fontSize: "var(--dc-font-size-xs)",
+                      fontWeight: 500,
+                      color: "var(--dc-text-muted)",
+                      marginBottom: "0.25rem",
+                    }}
+                  >
+                    Username
+                  </label>
+                  <input
+                    id="username"
+                    name="username"
+                    value={form.username}
+                    onChange={onChange}
+                    required
+                    autoComplete="username"
+                    autoFocus
+                    style={{
+                      width: "100%",
+                      padding: "0.45rem 0.6rem",
+                      borderRadius: "var(--dc-radius-sm)",
+                      border: "1px solid var(--dc-border-subtle)",
+                      fontSize: "var(--dc-font-size-sm)",
+                      backgroundColor: "var(--dc-bg-input)",
+                    }}
+                  />
+                </div>
 
-        <label>
-          Display Name
-          <input
-            name="display_name"
-            value={form.display_name}
-            onChange={onChange}
-            placeholder="e.g. CPT You"
-          />
-        </label>
+                <div>
+                  <label
+                    htmlFor="password"
+                    style={{
+                      display: "block",
+                      fontSize: "var(--dc-font-size-xs)",
+                      fontWeight: 500,
+                      color: "var(--dc-text-muted)",
+                      marginBottom: "0.25rem",
+                    }}
+                  >
+                    Password
+                  </label>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                    }}
+                  >
+                    <input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      name="password"
+                      value={form.password}
+                      onChange={onChange}
+                      required
+                      autoComplete="new-password"
+                      style={{
+                        flex: 1,
+                        padding: "0.45rem 0.6rem",
+                        borderRadius: "var(--dc-radius-sm)",
+                        border: "1px solid var(--dc-border-subtle)",
+                        fontSize: "var(--dc-font-size-sm)",
+                        backgroundColor: "var(--dc-bg-input)",
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => setShowPassword((prev) => !prev)}
+                      style={{
+                        fontSize: "var(--dc-font-size-xs)",
+                        padding: "0.35rem 0.6rem",
+                      }}
+                    >
+                      {showPassword ? "Hide" : "Show"}
+                    </Button>
+                  </div>
+                  <p
+                    style={{
+                      marginTop: "0.25rem",
+                      marginBottom: 0,
+                      fontSize: "var(--dc-font-size-xs)",
+                      color: "var(--dc-text-muted)",
+                    }}
+                  >
+                    Use a strong password; DevCell stores only hashed credentials
+                    on the server.
+                  </p>
+                </div>
 
-        <label>
-          Job Title
-          <input
-            name="job_title"
-            value={form.job_title}
-            onChange={onChange}
-            placeholder="e.g. Dev Cell Lead"
-          />
-        </label>
+                <div>
+                  <label
+                    htmlFor="confirmPassword"
+                    style={{
+                      display: "block",
+                      fontSize: "var(--dc-font-size-xs)",
+                      fontWeight: 500,
+                      color: "var(--dc-text-muted)",
+                      marginBottom: "0.25rem",
+                    }}
+                  >
+                    Confirm Password
+                  </label>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                    }}
+                  >
+                    <input
+                      id="confirmPassword"
+                      type={showConfirmPassword ? "text" : "password"}
+                      name="confirmPassword"
+                      value={form.confirmPassword}
+                      onChange={onChange}
+                      required
+                      autoComplete="new-password"
+                      style={{
+                        flex: 1,
+                        padding: "0.45rem 0.6rem",
+                        borderRadius: "var(--dc-radius-sm)",
+                        border: "1px solid var(--dc-border-subtle)",
+                        fontSize: "var(--dc-font-size-sm)",
+                        backgroundColor: "var(--dc-bg-input)",
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() =>
+                        setShowConfirmPassword((prev) => !prev)
+                      }
+                      style={{
+                        fontSize: "var(--dc-font-size-xs)",
+                        padding: "0.35rem 0.6rem",
+                      }}
+                    >
+                      {showConfirmPassword ? "Hide" : "Show"}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </section>
 
-        <label>
-          Team Name
-          <input
-            name="team_name"
-            value={form.team_name}
-            onChange={onChange}
-            placeholder="e.g. CSD-D Dev Cell"
-          />
-        </label>
+            {/* Profile section */}
+            <section>
+              <h2
+                style={{
+                  margin: 0,
+                  marginBottom: "0.5rem",
+                  fontSize: "var(--dc-font-size-sm)",
+                  fontWeight: 600,
+                }}
+              >
+                Profile (optional)
+              </h2>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.75rem",
+                }}
+              >
+                <div>
+                  <label
+                    htmlFor="display_name"
+                    style={{
+                      display: "block",
+                      fontSize: "var(--dc-font-size-xs)",
+                      fontWeight: 500,
+                      color: "var(--dc-text-muted)",
+                      marginBottom: "0.25rem",
+                    }}
+                  >
+                    Display Name
+                  </label>
+                  <input
+                    id="display_name"
+                    name="display_name"
+                    value={form.display_name}
+                    onChange={onChange}
+                    placeholder="e.g. CPT You"
+                    style={{
+                      width: "100%",
+                      padding: "0.45rem 0.6rem",
+                      borderRadius: "var(--dc-radius-sm)",
+                      border: "1px solid var(--dc-border-subtle)",
+                      fontSize: "var(--dc-font-size-sm)",
+                      backgroundColor: "var(--dc-bg-input)",
+                    }}
+                  />
+                </div>
 
-        <label>
-          Rank
-          <input
-            name="rank"
-            value={form.rank}
-            onChange={onChange}
-            placeholder="e.g. CPT, SSG, GS-13"
-          />
-        </label>
+                <div>
+                  <label
+                    htmlFor="job_title"
+                    style={{
+                      display: "block",
+                      fontSize: "var(--dc-font-size-xs)",
+                      fontWeight: 500,
+                      color: "var(--dc-text-muted)",
+                      marginBottom: "0.25rem",
+                    }}
+                  >
+                    Job Title
+                  </label>
+                  <input
+                    id="job_title"
+                    name="job_title"
+                    value={form.job_title}
+                    onChange={onChange}
+                    placeholder="e.g. DevCell Lead"
+                    style={{
+                      width: "100%",
+                      padding: "0.45rem 0.6rem",
+                      borderRadius: "var(--dc-radius-sm)",
+                      border: "1px solid var(--dc-border-subtle)",
+                      fontSize: "var(--dc-font-size-sm)",
+                      backgroundColor: "var(--dc-bg-input)",
+                    }}
+                  />
+                </div>
 
-        <label>
-          Skills
-          <textarea
-            name="skills"
-            value={form.skills}
-            onChange={onChange}
-            placeholder="Optional: Python, FastAPI, malware dev..."
-          />
-        </label>
+                <div>
+                  <label
+                    htmlFor="team_name"
+                    style={{
+                      display: "block",
+                      fontSize: "var(--dc-font-size-xs)",
+                      fontWeight: 500,
+                      color: "var(--dc-text-muted)",
+                      marginBottom: "0.25rem",
+                    }}
+                  >
+                    Team Name
+                  </label>
+                  <input
+                    id="team_name"
+                    name="team_name"
+                    value={form.team_name}
+                    onChange={onChange}
+                    placeholder="e.g. CSD-D DevCell"
+                    style={{
+                      width: "100%",
+                      padding: "0.45rem 0.6rem",
+                      borderRadius: "var(--dc-radius-sm)",
+                      border: "1px solid var(--dc-border-subtle)",
+                      fontSize: "var(--dc-font-size-sm)",
+                      backgroundColor: "var(--dc-bg-input)",
+                    }}
+                  />
+                </div>
 
-        <button type="submit" disabled={loading}>
-          {loading ? "Creating..." : "Create Account"}
-        </button>
-      </form>
+                <div>
+                  <label
+                    htmlFor="rank"
+                    style={{
+                      display: "block",
+                      fontSize: "var(--dc-font-size-xs)",
+                      fontWeight: 500,
+                      color: "var(--dc-text-muted)",
+                      marginBottom: "0.25rem",
+                    }}
+                  >
+                    Rank
+                  </label>
+                  <input
+                    id="rank"
+                    name="rank"
+                    value={form.rank}
+                    onChange={onChange}
+                    placeholder="e.g. CPT, SSG, GS-13"
+                    style={{
+                      width: "100%",
+                      padding: "0.45rem 0.6rem",
+                      borderRadius: "var(--dc-radius-sm)",
+                      border: "1px solid var(--dc-border-subtle)",
+                      fontSize: "var(--dc-font-size-sm)",
+                      backgroundColor: "var(--dc-bg-input)",
+                    }}
+                  />
+                </div>
 
-      <p style={{ marginTop: "1rem", fontSize: "0.9rem" }}>
-        Already have an account? <Link to="/login">Sign in</Link>
-      </p>
+                <div>
+                  <label
+                    htmlFor="skills"
+                    style={{
+                      display: "block",
+                      fontSize: "var(--dc-font-size-xs)",
+                      fontWeight: 500,
+                      color: "var(--dc-text-muted)",
+                      marginBottom: "0.25rem",
+                    }}
+                  >
+                    Skills
+                  </label>
+                  <textarea
+                    id="skills"
+                    name="skills"
+                    value={form.skills}
+                    onChange={onChange}
+                    placeholder="Optional: Python, FastAPI, malware dev..."
+                    style={{
+                      width: "100%",
+                      minHeight: "80px",
+                      padding: "0.45rem 0.6rem",
+                      borderRadius: "var(--dc-radius-sm)",
+                      border: "1px solid var(--dc-border-subtle)",
+                      fontSize: "var(--dc-font-size-sm)",
+                      backgroundColor: "var(--dc-bg-input)",
+                      resize: "vertical",
+                    }}
+                  />
+                </div>
+              </div>
+            </section>
+
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "0.5rem",
+                marginTop: "0.5rem",
+              }}
+            >
+              <Button type="submit" disabled={loading}>
+                {loading ? "Creating..." : "Create Account"}
+              </Button>
+
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: "var(--dc-font-size-sm)",
+                  color: "var(--dc-text-muted)",
+                }}
+              >
+                Already have an account?{" "}
+                <Link
+                  to="/login"
+                  style={{
+                    color: "var(--dc-color-primary)",
+                    textDecoration: "none",
+                    fontWeight: 500,
+                  }}
+                >
+                  Sign in
+                </Link>
+              </p>
+            </div>
+          </form>
+        </Card>
+      </div>
     </div>
   );
 };

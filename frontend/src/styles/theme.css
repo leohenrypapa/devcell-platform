@@ -1,0 +1,180 @@
+/* frontend/src/styles/theme.css */
+
+/* Design tokens */
+:root {
+  --dc-bg-app: #f9fafb;
+  --dc-bg-surface: #ffffff;
+  --dc-bg-subtle: #f3f4f6;
+
+  --dc-border-subtle: #e5e7eb;
+  --dc-border-strong: #d1d5db;
+
+  --dc-text-primary: #111827;
+  --dc-text-muted: #6b7280;
+
+  --dc-color-primary: #2563eb;
+  --dc-color-primary-soft: rgba(37, 99, 235, 0.1);
+  --dc-color-danger: #dc2626;
+  --dc-color-warning: #f59e0b;
+  --dc-color-success: #16a34a;
+
+  --dc-radius-sm: 0.375rem;
+  --dc-radius-md: 0.75rem;
+  --dc-radius-full: 999px;
+
+  --dc-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --dc-shadow-md: 0 10px 30px rgba(15, 23, 42, 0.12);
+
+  --dc-sidebar-width: 260px;
+  --dc-topbar-height: 3.5rem;
+
+  --dc-font-size-xs: 0.75rem;
+  --dc-font-size-sm: 0.875rem;
+  --dc-font-size-md: 0.95rem;
+  --dc-font-size-lg: 1.1rem;
+}
+
+/* Dark theme overrides */
+[data-theme="dark"] {
+  --dc-bg-app: #020617;
+  --dc-bg-surface: #020617;
+  --dc-bg-subtle: #020617;
+
+  --dc-border-subtle: #1f2937;
+  --dc-border-strong: #374151;
+
+  --dc-text-primary: #e5e7eb;
+  --dc-text-muted: #9ca3af;
+
+  --dc-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.6);
+  --dc-shadow-md: 0 10px 30px rgba(0, 0, 0, 0.7);
+}
+
+/* Root app container */
+.dc-root {
+  min-height: 100vh;
+  background-color: var(--dc-bg-app);
+  color: var(--dc-text-primary);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+}
+
+/* Shell layout: sidebar + topbar + main */
+.dc-shell {
+  display: grid;
+  grid-template-columns: var(--dc-sidebar-width) minmax(0, 1fr);
+  grid-template-rows: var(--dc-topbar-height) minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+.dc-sidebar-desktop {
+  grid-row: 1 / span 2;
+  border-right: 1px solid var(--dc-border-subtle);
+  background-color: var(--dc-bg-surface);
+}
+
+.dc-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.dc-main-content {
+  flex: 1;
+  padding: 1rem;
+  background: linear-gradient(
+    to bottom,
+    var(--dc-bg-app),
+    var(--dc-bg-subtle)
+  );
+  overflow: auto;
+}
+
+/* Page helper */
+.dc-page {
+  width: 100%;
+}
+
+.dc-page-inner {
+  max-width: 1120px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* Mobile behavior */
+@media (max-width: 1024px) {
+  .dc-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dc-sidebar-desktop {
+    display: none;
+  }
+
+  .dc-main-content {
+    padding-inline: 0.75rem;
+  }
+}
+
+/* Mobile sidebar overlay */
+.dc-sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+}
+
+.dc-sidebar-overlay-backdrop {
+  position: absolute;
+  inset: 0;
+  background-color: rgba(15, 23, 42, 0.55);
+}
+
+.dc-sidebar-overlay-panel {
+  position: relative;
+  z-index: 41;
+  width: min(260px, 80vw);
+  background-color: var(--dc-bg-surface);
+  border-right: 1px solid var(--dc-border-subtle);
+  box-shadow: var(--dc-shadow-md);
+}
+
+/* Only show overlay on mobile */
+@media (min-width: 1025px) {
+  .dc-sidebar-overlay {
+    display: none;
+  }
+}
+
+/* Simple focus-visible baseline */
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--dc-color-primary);
+  outline-offset: 2px;
+}
+
+/* Topbar helpers */
+.dc-topbar-title {
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+/* Utility classes */
+.dc-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid var(--dc-border-subtle);
+  font-size: var(--dc-font-size-xs);
+  white-space: nowrap;
+}
+
+.dc-badge-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+}

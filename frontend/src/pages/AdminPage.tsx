@@ -1,60 +1,43 @@
 // filename: frontend/src/pages/AdminPage.tsx
-import React, { useEffect, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useUser } from "../context/UserContext";
 
-import type {
-  User as AdminUser,
-  AdminCreateUserPayload,
-  AdminUpdateUserPayload,
-} from "../lib/users";
+import PageHeader from "../ui/PageHeader";
+import Card from "../ui/Card";
+import Button from "../ui/Button";
+import ConfirmDialog from "../ui/ConfirmDialog";
+
 import {
-  adminCreateUser,
-  adminUpdateUser,
-  listUsers,
-} from "../lib/users";
+  useAdminUsers,
+  type AdminUser,
+  type EditUserForm,
+} from "../features/admin/useAdminUsers";
+import { UserCreateCard } from "../features/admin/UserCreateCard";
+import { UserTable } from "../features/admin/UserTable";
 
-type NewUserForm = {
-  username: string;
-  password: string;
-  role: "user" | "admin" | string;
-  display_name: string;
-  job_title: string;
-  team_name: string;
-  rank: string;
-  skills: string;
-};
-
-type EditUserForm = {
-  display_name: string;
-  job_title: string;
-  team_name: string;
-  rank: string;
-  skills: string;
-};
+type PendingAction =
+  | { type: "toggleRole"; user: AdminUser }
+  | { type: "toggleActive"; user: AdminUser };
 
 const AdminPage: React.FC = () => {
-  const { user, token } = useUser();
+  const { user } = useUser();
+  const {
+    users,
+    loading,
+    creating,
+    updating,
+    error,
+    info,
+    createUser,
+    updateUser,
+    toggleRole,
+    toggleActive,
+    resetMessages,
+  } = useAdminUsers();
 
-  const [users, setUsers] = useState<AdminUser[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [updating, setUpdating] = useState(false);
-  const [creating, setCreating] = useState(false);
+  const isAdmin = user?.role === "admin";
 
-  const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
-
-  const [newUser, setNewUser] = useState<NewUserForm>({
-    username: "",
-    password: "",
-    role: "user",
-    display_name: "",
-    job_title: "",
-    team_name: "",
-    rank: "",
-    skills: "",
-  });
-
-  // Inline profile-edit form state
+  // Inline profile-edit form state (per user)
   const [editUserId, setEditUserId] = useState<number | null>(null);
   const [editForm, setEditForm] = useState<EditUserForm>({
     display_name: "",
@@ -64,117 +47,183 @@ const AdminPage: React.FC = () => {
     skills: "",
   });
 
-  const isAdmin = user?.role === "admin";
+  // --- Filters & search ------------------------------------------------------
 
-  const resetMessages = () => {
-    setError(null);
-    setInfo(null);
-  };
+  const [searchTerm, setSearchTerm] = useState("");
+  const [roleFilter, setRoleFilter] = useState<"all" | "user" | "admin">("all");
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | "active" | "inactive"
+  >("all");
 
-  const fetchUsers = async () => {
-    if (!token) return;
-    setLoading(true);
-    resetMessages();
+  const filteredUsers = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    let result = [...users];
 
-    try {
-      const all = await listUsers(token);
-      setUsers(all);
-    } catch (err: unknown) {
-      const message =
-        err instanceof Error ? err.message : "Failed to load users.";
-      setError(message);
-    } finally {
-      setLoading(false);
+    if (roleFilter !== "all") {
+      result = result.filter((u) => u.role === roleFilter);
     }
-  };
 
-  useEffect(() => {
-    if (isAdmin) {
-      void fetchUsers();
+    if (statusFilter !== "all") {
+      const shouldBeActive = statusFilter === "active";
+      result = result.filter((u) => u.is_active === shouldBeActive);
     }
-  }, [isAdmin, token]);
 
-  const updateUser = async (id: number, patch: AdminUpdateUserPayload) => {
-    if (!token) return;
-
-    resetMessages();
-    setUpdating(true);
-
-    try {
-      await adminUpdateUser(token, id, patch);
-      setInfo("User updated.");
-      await fetchUsers();
-    } catch (err: unknown) {
-      const message =
-        err instanceof Error ? err.message : "Failed to update user.";
-      setError(message);
-    } finally {
-      setUpdating(false);
-    }
-  };
-
-  const handleToggleRole = (u: AdminUser) => {
-    const nextRole: "user" | "admin" = u.role === "admin" ? "user" : "admin";
-    void updateUser(u.id, { role: nextRole });
-  };
-
-  const handleToggleActive = (u: AdminUser) => {
-    void updateUser(u.id, { is_active: !u.is_active });
-  };
-
-  const handleNewUserChange = (
-    e: React.ChangeEvent<
-      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
-    >,
-  ) => {
-    const { name, value } = e.target;
-    setNewUser((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-  };
-
-
-  const handleCreateUser = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!token) return;
-
-    resetMessages();
-    setCreating(true);
-
-    const payload: AdminCreateUserPayload = {
-      username: newUser.username,
-      password: newUser.password,
-      role: newUser.role === "admin" ? "admin" : "user",
-      display_name: newUser.display_name || null,
-      job_title: newUser.job_title || null,
-      team_name: newUser.team_name || null,
-      rank: newUser.rank || null,
-      skills: newUser.skills || null,
-    };
-
-    try {
-      await adminCreateUser(token, payload);
-      setInfo("User created.");
-      setNewUser({
-        username: "",
-        password: "",
-        role: "user",
-        display_name: "",
-        job_title: "",
-        team_name: "",
-        rank: "",
-        skills: "",
+    if (term) {
+      result = result.filter((u) => {
+        const fields: (string | null | undefined)[] = [
+          u.username,
+          u.display_name,
+          u.job_title,
+          u.team_name,
+          u.rank,
+          u.skills,
+        ];
+        return fields
+          .filter(Boolean)
+          .some((value) => value!.toLowerCase().includes(term));
       });
-      await fetchUsers();
-    } catch (err: unknown) {
-      const message =
-        err instanceof Error ? err.message : "Failed to create user.";
-      setError(message);
-    } finally {
-      setCreating(false);
     }
+
+    // Newest first
+    result.sort(
+      (a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+    );
+
+    return result;
+  }, [users, searchTerm, roleFilter, statusFilter]);
+
+  const totalUsers = users.length;
+  const filteredCount = filteredUsers.length;
+
+  const countLabel =
+    totalUsers === 0
+      ? "No users"
+      : totalUsers === filteredCount
+      ? `${totalUsers} user${totalUsers === 1 ? "" : "s"}`
+      : `${filteredCount} of ${totalUsers} users`;
+
+  // --- Pending confirmation action ------------------------------------------
+
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(
+    null,
+  );
+
+  const handleRequestToggleRole = (u: AdminUser) => {
+    setPendingAction({ type: "toggleRole", user: u });
   };
+
+  const handleRequestToggleActive = (u: AdminUser) => {
+    setPendingAction({ type: "toggleActive", user: u });
+  };
+
+  const handleConfirmAction = () => {
+    if (!pendingAction) return;
+
+    if (pendingAction.type === "toggleRole") {
+      toggleRole(pendingAction.user);
+    } else if (pendingAction.type === "toggleActive") {
+      toggleActive(pendingAction.user);
+    }
+
+    setPendingAction(null);
+  };
+
+  const handleCancelAction = () => {
+    setPendingAction(null);
+  };
+
+  const confirmTitle = (() => {
+    if (!pendingAction) return "";
+    if (pendingAction.type === "toggleRole") {
+      const nextRole = pendingAction.user.role === "admin" ? "user" : "admin";
+      return `Change role to ${nextRole}?`;
+    }
+    // toggleActive
+    return pendingAction.user.is_active
+      ? "Deactivate this account?"
+      : "Activate this account?";
+  })();
+
+  const confirmDescription = (() => {
+    if (!pendingAction) return "";
+
+    const username = pendingAction.user.username;
+    if (pendingAction.type === "toggleRole") {
+      const nextRole = pendingAction.user.role === "admin" ? "user" : "admin";
+      return `You are about to change the role for "${username}" to "${nextRole}". This affects what they can see and do in the platform. The backend prevents removing the last active admin, but you should still double-check before proceeding.`;
+    }
+
+    if (pendingAction.user.is_active) {
+      return `This will deactivate the account for "${username}". They will no longer be able to sign in until reactivated. Existing data will not be deleted.`;
+    }
+
+    return `This will activate the account for "${username}" so they can sign in again.`;
+  })();
+
+  const confirmLabel = (() => {
+    if (!pendingAction) return "Confirm";
+    if (pendingAction.type === "toggleRole") return "Change role";
+    if (pendingAction.user.is_active) return "Deactivate account";
+    return "Activate account";
+  })();
+
+  const confirmTone: "default" | "danger" =
+    pendingAction && pendingAction.type === "toggleActive"
+      ? pendingAction.user.is_active
+        ? "danger"
+        : "default"
+      : "default";
+
+  // --- Access control guards -------------------------------------------------
+
+  if (!user) {
+    return (
+      <div className="dc-page">
+        <div
+          className="dc-page-inner"
+          style={{
+            maxWidth: 640,
+            margin: "2rem auto",
+            padding: "1rem",
+          }}
+        >
+          <PageHeader title="Admin" description="Authentication required." />
+          <Card>
+            <p>You must be signed in to view this page.</p>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="dc-page">
+        <div
+          className="dc-page-inner"
+          style={{
+            maxWidth: 640,
+            margin: "2rem auto",
+            padding: "1rem",
+          }}
+        >
+          <PageHeader
+            title="Admin"
+            description="You do not have permission to access this area."
+          />
+          <Card>
+            <p style={{ fontSize: "var(--dc-font-size-sm)" }}>
+              🚫 You do not have permission to view this page. If you believe
+              this is an error, contact an administrator.
+            </p>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  // --- Edit form helpers -----------------------------------------------------
 
   const handleStartEdit = (u: AdminUser) => {
     setEditUserId(u.id);
@@ -209,268 +258,256 @@ const AdminPage: React.FC = () => {
     setEditUserId(null);
   };
 
-  // Basic access control UX on the page itself
-  if (!user) {
-    return (
-      <div style={{ maxWidth: 600, margin: "2rem auto" }}>
-        <h1>Admin</h1>
-        <p>You must be signed in to view this page.</p>
-      </div>
-    );
-  }
+  const handleCancelEdit = () => {
+    setEditUserId(null);
+  };
 
-  if (!isAdmin) {
-    return (
-      <div style={{ maxWidth: 600, margin: "2rem auto" }}>
-        <h1>Admin</h1>
-        <p>🚫 You do not have permission to view this page.</p>
-      </div>
-    );
-  }
+  // --- Layout ---------------------------------------------------------------
+
+  const hasMessages = !!error || !!info;
+
+  const filterLabelStyle: React.CSSProperties = {
+    display: "block",
+    fontSize: "var(--dc-font-size-xs)",
+    marginBottom: "0.15rem",
+    color: "var(--dc-text-muted)",
+  };
+
+  const filterInputStyle: React.CSSProperties = {
+    width: "100%",
+    padding: "0.35rem 0.5rem",
+    borderRadius: "var(--dc-radius-sm)",
+    border: "1px solid var(--dc-border-subtle)",
+    fontSize: "var(--dc-font-size-sm)",
+    backgroundColor: "var(--dc-bg-subtle)",
+  };
 
   return (
-    <div style={{ maxWidth: 1000, margin: "1rem auto" }}>
-      <h1>Admin — User Management</h1>
-      <p style={{ fontSize: "0.9rem", opacity: 0.8 }}>
-        Manage users, roles, and account status. The backend prevents removing
-        or deactivating the last active admin.
-      </p>
-
-      {error && (
-        <div style={{ color: "red", marginBottom: "0.75rem" }}>{error}</div>
-      )}
-      {info && (
-        <div style={{ color: "green", marginBottom: "0.75rem" }}>{info}</div>
-      )}
-
-      <section style={{ marginBottom: "2rem" }}>
-        <h2>Create New User</h2>
-        <form
-          onSubmit={handleCreateUser}
-          style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}
+    <>
+      <div className="dc-page">
+        <div
+          className="dc-page-inner"
+          style={{
+            maxWidth: "var(--dc-page-max-width, 1080px)",
+            margin: "0 auto",
+            padding: "1.25rem 1rem 2rem",
+          }}
         >
-          <label>
-            Username
-            <input
-              name="username"
-              value={newUser.username}
-              onChange={handleNewUserChange}
-              required
-            />
-          </label>
-          <label>
-            Password
-            <input
-              type="password"
-              name="password"
-              value={newUser.password}
-              onChange={handleNewUserChange}
-              required
-            />
-          </label>
-          <label>
-            Role
-            <select
-              name="role"
-              value={newUser.role}
-              onChange={handleNewUserChange}
-            >
-              <option value="user">user</option>
-              <option value="admin">admin</option>
-            </select>
-          </label>
-          <label>
-            Display Name
-            <input
-              name="display_name"
-              value={newUser.display_name}
-              onChange={handleNewUserChange}
-            />
-          </label>
-          <label>
-            Job Title
-            <input
-              name="job_title"
-              value={newUser.job_title}
-              onChange={handleNewUserChange}
-            />
-          </label>
-          <label>
-            Team Name
-            <input
-              name="team_name"
-              value={newUser.team_name}
-              onChange={handleNewUserChange}
-            />
-          </label>
-          <label>
-            Rank
-            <input
-              name="rank"
-              value={newUser.rank}
-              onChange={handleNewUserChange}
-            />
-          </label>
-          <label>
-            Skills
-            <textarea
-              name="skills"
-              value={newUser.skills}
-              onChange={handleNewUserChange}
-            />
-          </label>
-          <button type="submit" disabled={creating}>
-            {creating ? "Creating..." : "Create User"}
-          </button>
-        </form>
-      </section>
+          <PageHeader
+            title="Admin — User Management"
+            description="Manage users, roles, and account status. The backend prevents removing or deactivating the last active admin."
+            actions={
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={resetMessages}
+                style={{ fontSize: "var(--dc-font-size-xs)" }}
+              >
+                Clear messages
+              </Button>
+            }
+          />
 
-      <section>
-        <h2>Existing Users</h2>
-        {loading ? (
-          <p>Loading users...</p>
-        ) : (
-          <table
+          {hasMessages && (
+            <div
+              style={{
+                marginBottom: "1rem",
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.35rem",
+                fontSize: "var(--dc-font-size-sm)",
+              }}
+            >
+              {error && (
+                <div
+                  style={{
+                    padding: "0.5rem 0.75rem",
+                    borderRadius: "var(--dc-radius-sm)",
+                    border: "1px solid var(--dc-color-danger-soft, #fecaca)",
+                    backgroundColor:
+                      "var(--dc-color-danger-subtle, rgba(248,113,113,0.06))",
+                    color: "var(--dc-color-danger-text, #b91c1c)",
+                  }}
+                >
+                  {error}
+                </div>
+              )}
+              {info && (
+                <div
+                  style={{
+                    padding: "0.5rem 0.75rem",
+                    borderRadius: "var(--dc-radius-sm)",
+                    border:
+                      "1px solid var(--dc-color-success-soft, rgba(22,163,74,0.35))",
+                    backgroundColor:
+                      "var(--dc-color-success-subtle, rgba(22,163,74,0.06))",
+                    color: "var(--dc-color-success-text, #166534)",
+                  }}
+                >
+                  {info}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div
             style={{
-              width: "100%",
-              borderCollapse: "collapse",
-              fontSize: "0.9rem",
+              display: "grid",
+              gridTemplateColumns: "minmax(0, 1.1fr) minmax(0, 2fr)",
+              gap: "1.25rem",
             }}
           >
-            <thead>
-              <tr>
-                <th style={{ borderBottom: "1px solid #ddd" }}>Username</th>
-                <th style={{ borderBottom: "1px solid #ddd" }}>Role</th>
-                <th style={{ borderBottom: "1px solid #ddd" }}>Active</th>
-                <th style={{ borderBottom: "1px solid #ddd" }}>Display Name</th>
-                <th style={{ borderBottom: "1px solid #ddd" }}>Job</th>
-                <th style={{ borderBottom: "1px solid #ddd" }}>Team</th>
-                <th style={{ borderBottom: "1px solid #ddd" }}>Rank</th>
-                <th style={{ borderBottom: "1px solid #ddd" }}>Skills</th>
-                <th style={{ borderBottom: "1px solid #ddd" }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.map((u) => {
-                const isEditing = editUserId === u.id;
-                return (
-                  <tr key={u.id}>
-                    <td style={{ borderBottom: "1px solid #f0f0f0" }}>
-                      {u.username}
-                    </td>
-                    <td style={{ borderBottom: "1px solid #f0f0f0" }}>
-                      {u.role}{" "}
-                      <button
-                        type="button"
-                        onClick={() => handleToggleRole(u)}
-                        disabled={updating}
-                        style={{ marginLeft: "0.25rem" }}
-                      >
-                        Toggle
-                      </button>
-                    </td>
-                    <td style={{ borderBottom: "1px solid #f0f0f0" }}>
-                      {u.is_active ? "yes" : "no"}{" "}
-                      <button
-                        type="button"
-                        onClick={() => handleToggleActive(u)}
-                        disabled={updating}
-                        style={{ marginLeft: "0.25rem" }}
-                      >
-                        {u.is_active ? "Deactivate" : "Activate"}
-                      </button>
-                    </td>
-                    {isEditing ? (
-                      <>
-                        <td style={{ borderBottom: "1px solid #f0f0f0" }}>
-                          <input
-                            name="display_name"
-                            value={editForm.display_name}
-                            onChange={handleEditChange}
-                          />
-                        </td>
-                        <td style={{ borderBottom: "1px solid #f0f0f0" }}>
-                          <input
-                            name="job_title"
-                            value={editForm.job_title}
-                            onChange={handleEditChange}
-                          />
-                        </td>
-                        <td style={{ borderBottom: "1px solid #f0f0f0" }}>
-                          <input
-                            name="team_name"
-                            value={editForm.team_name}
-                            onChange={handleEditChange}
-                          />
-                        </td>
-                        <td style={{ borderBottom: "1px solid #f0f0f0" }}>
-                          <input
-                            name="rank"
-                            value={editForm.rank}
-                            onChange={handleEditChange}
-                          />
-                        </td>
-                        <td style={{ borderBottom: "1px solid #f0f0f0" }}>
-                          <textarea
-                            name="skills"
-                            value={editForm.skills}
-                            onChange={handleEditChange}
-                          />
-                        </td>
-                        <td style={{ borderBottom: "1px solid #f0f0f0" }}>
-                          <button
-                            type="button"
-                            onClick={() => void handleSaveEdit(u)}
-                            disabled={updating}
-                            style={{ marginRight: "0.25rem" }}
-                          >
-                            Save
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setEditUserId(null)}
-                            disabled={updating}
-                          >
-                            Cancel
-                          </button>
-                        </td>
-                      </>
-                    ) : (
-                      <>
-                        <td style={{ borderBottom: "1px solid #f0f0f0" }}>
-                          {u.display_name ?? ""}
-                        </td>
-                        <td style={{ borderBottom: "1px solid #f0f0f0" }}>
-                          {u.job_title ?? ""}
-                        </td>
-                        <td style={{ borderBottom: "1px solid #f0f0f0" }}>
-                          {u.team_name ?? ""}
-                        </td>
-                        <td style={{ borderBottom: "1px solid #f0f0f0" }}>
-                          {u.rank ?? ""}
-                        </td>
-                        <td style={{ borderBottom: "1px solid #f0f0f0" }}>
-                          {u.skills ?? ""}
-                        </td>
-                        <td style={{ borderBottom: "1px solid #f0f0f0" }}>
-                          <button
-                            type="button"
-                            onClick={() => handleStartEdit(u)}
-                            disabled={updating}
-                          >
-                            Edit
-                          </button>
-                        </td>
-                      </>
-                    )}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </section>
-    </div>
+            {/* Create User card */}
+            <UserCreateCard creating={creating} onCreate={createUser} />
+
+            {/* Users table + filters */}
+            <Card
+              style={{
+                minHeight: "260px",
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.75rem",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: "0.75rem",
+                }}
+              >
+                <div>
+                  <h2
+                    style={{
+                      margin: 0,
+                      fontSize: "var(--dc-font-size-md)",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Existing Users
+                  </h2>
+                  <p
+                    style={{
+                      margin: 0,
+                      marginTop: "0.25rem",
+                      fontSize: "var(--dc-font-size-xs)",
+                      color: "var(--dc-text-muted)",
+                    }}
+                  >
+                    View and adjust roles, activation, and profile fields.
+                  </p>
+                </div>
+                <span
+                  style={{
+                    fontSize: "var(--dc-font-size-xs)",
+                    color: "var(--dc-text-muted)",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {countLabel}
+                </span>
+              </div>
+
+              {/* Filters row */}
+              <div
+                style={{
+                  marginTop: "0.35rem",
+                  marginBottom: "0.25rem",
+                  display: "grid",
+                  gridTemplateColumns:
+                    "minmax(0, 1.8fr) minmax(0, 1fr) minmax(0, 1fr)",
+                  gap: "0.5rem",
+                  alignItems: "flex-end",
+                }}
+              >
+                <div>
+                  <label style={filterLabelStyle} htmlFor="admin-user-search">
+                    Search
+                  </label>
+                  <input
+                    id="admin-user-search"
+                    type="search"
+                    placeholder="Search username, name, team, rank, skills…"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    style={filterInputStyle}
+                  />
+                </div>
+                <div>
+                  <label
+                    style={filterLabelStyle}
+                    htmlFor="admin-user-role-filter"
+                  >
+                    Role
+                  </label>
+                  <select
+                    id="admin-user-role-filter"
+                    value={roleFilter}
+                    onChange={(e) =>
+                      setRoleFilter(e.target.value as "all" | "user" | "admin")
+                    }
+                    style={filterInputStyle}
+                  >
+                    <option value="all">All roles</option>
+                    <option value="user">User</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+                <div>
+                  <label
+                    style={filterLabelStyle}
+                    htmlFor="admin-user-status-filter"
+                  >
+                    Status
+                  </label>
+                  <select
+                    id="admin-user-status-filter"
+                    value={statusFilter}
+                    onChange={(e) =>
+                      setStatusFilter(
+                        e.target.value as "all" | "active" | "inactive",
+                      )
+                    }
+                    style={filterInputStyle}
+                  >
+                    <option value="all">All statuses</option>
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                  </select>
+                </div>
+              </div>
+
+              <UserTable
+                users={filteredUsers}
+                hasAnyUsers={totalUsers > 0}
+                loading={loading}
+                updating={updating}
+                editUserId={editUserId}
+                editForm={editForm}
+                onStartEdit={handleStartEdit}
+                onChangeEdit={handleEditChange}
+                onSaveEdit={handleSaveEdit}
+                onCancelEdit={handleCancelEdit}
+                onRequestToggleRole={handleRequestToggleRole}
+                onRequestToggleActive={handleRequestToggleActive}
+              />
+            </Card>
+          </div>
+        </div>
+      </div>
+
+      <ConfirmDialog
+        open={!!pendingAction}
+        title={confirmTitle}
+        description={confirmDescription}
+        confirmLabel={confirmLabel}
+        cancelLabel="Cancel"
+        tone={confirmTone}
+        onConfirm={handleConfirmAction}
+        onCancel={handleCancelAction}
+      />
+    </>
   );
 };
 

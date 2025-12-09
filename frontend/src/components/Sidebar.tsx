@@ -1,130 +1,128 @@
-// filename: frontend/src/components/Sidebar.tsx
+// frontend/src/components/Sidebar.tsx
 import React from "react";
 import { NavLink } from "react-router-dom";
 
 import { useTheme } from "../context/ThemeContext";
 import { useUser } from "../context/UserContext";
 
-const Sidebar: React.FC = () => {
+type NavItem = {
+  to: string;
+  label: string;
+  end?: boolean;
+  adminOnly?: boolean;
+};
+
+type SidebarProps = {
+  onNavigate?: () => void;
+};
+
+const NAV_ITEMS: NavItem[] = [
+  { to: "/", label: "Dashboard", end: true },
+  { to: "/chat", label: "Unit Chat" },
+  { to: "/tasks", label: "Tasks" },
+  { to: "/projects", label: "Projects" },
+  { to: "/standup", label: "Standups" },
+  { to: "/knowledge", label: "Knowledge Base" },
+  { to: "/training", label: "Training" },
+  { to: "/review", label: "Code Review" },
+  { to: "/admin", label: "Admin", adminOnly: true },
+];
+
+const Sidebar: React.FC<SidebarProps> = ({ onNavigate }) => {
   const { theme } = useTheme();
   const { user } = useUser();
   const isDark = theme === "dark";
 
-  const baseStyle: React.CSSProperties = {
+  const textMuted = "var(--dc-text-muted)";
+  const activeBg = "var(--dc-bg-subtle)";
+
+  const baseLinkStyle: React.CSSProperties = {
     display: "block",
-    padding: "0.5rem 1rem",
+    padding: "0.55rem 0.9rem",
     textDecoration: "none",
-    color: isDark ? "#e5e7eb" : "#333333",
-    fontSize: "0.9rem",
+    borderRadius: "0.5rem",
+    fontSize: "var(--dc-font-size-sm)",
+    transition: "background-color 120ms ease, color 120ms ease",
   };
 
-  const activeBg = isDark ? "#1f2937" : "#eeeeee";
+  const canSeeAdmin = (user as any)?.role === "admin";
 
   return (
-    <aside
+    <div
       style={{
-        width: "220px",
-        borderRight: `1px solid ${isDark ? "#374151" : "#dddddd"}`,
-        paddingTop: "1rem",
-        backgroundColor: isDark ? "#020617" : "#ffffff",
+        height: "100%",
+        padding: "1rem 0.9rem",
+        display: "flex",
+        flexDirection: "column",
+        gap: "1rem",
+        backgroundColor: "var(--dc-bg-surface)",
       }}
     >
-      <h2
+      <div
         style={{
-          padding: "0 1rem",
-          fontSize: "1.2rem",
-          color: isDark ? "#e5e7eb" : "#111827",
+          padding: "0 0.4rem",
+          fontWeight: 600,
+          fontSize: "var(--dc-font-size-md)",
+          display: "flex",
+          flexDirection: "column",
+          gap: "0.15rem",
         }}
       >
-        DevCell
-      </h2>
-      <nav style={{ marginTop: "1rem" }} aria-label="Main navigation">
-        <NavLink
-          to="/"
-          end
-          style={({ isActive }) => ({
-            ...baseStyle,
-            backgroundColor: isActive ? activeBg : "transparent",
-          })}
+        <span>DevCell</span>
+        <span
+          style={{
+            color: textMuted,
+            fontSize: "var(--dc-font-size-xs)",
+            textTransform: "uppercase",
+            letterSpacing: "0.08em",
+          }}
         >
-          Dashboard
-        </NavLink>
-        <NavLink
-          to="/chat"
-          style={({ isActive }) => ({
-            ...baseStyle,
-            backgroundColor: isActive ? activeBg : "transparent",
-          })}
+          Platform
+        </span>
+      </div>
+
+      <nav aria-label="Main">
+        <ul
+          style={{
+            listStyle: "none",
+            padding: 0,
+            margin: 0,
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.15rem",
+          }}
         >
-          Unit Chat (LLM)
-        </NavLink>
-        <NavLink
-          to="/knowledge"
-          style={({ isActive }) => ({
-            ...baseStyle,
-            backgroundColor: isActive ? activeBg : "transparent",
+          {NAV_ITEMS.map((item) => {
+            if (item.adminOnly && !canSeeAdmin) {
+              return null;
+            }
+
+            return (
+              <li key={item.to}>
+                <NavLink
+                  to={item.to}
+                  end={item.end}
+                  style={({ isActive }) => ({
+                    ...baseLinkStyle,
+                    backgroundColor: isActive ? activeBg : "transparent",
+                    color: isActive
+                      ? isDark
+                        ? "#f9fafb"
+                        : "#111827"
+                      : isDark
+                      ? "#e5e7eb"
+                      : "#111827",
+                  })}
+                  onClick={onNavigate}
+                >
+                  {item.label}
+                </NavLink>
+              </li>
+            );
           })}
-        >
-          Knowledge Base
-        </NavLink>
-        <NavLink
-          to="/standup"
-          style={({ isActive }) => ({
-            ...baseStyle,
-            backgroundColor: isActive ? activeBg : "transparent",
-          })}
-        >
-          Standups
-        </NavLink>
-        <NavLink
-          to="/tasks"
-          style={({ isActive }) => ({
-            ...baseStyle,
-            backgroundColor: isActive ? activeBg : "transparent",
-          })}
-        >
-          Tasks
-        </NavLink>
-        <NavLink
-          to="/training"
-          style={({ isActive }) => ({
-            ...baseStyle,
-            backgroundColor: isActive ? activeBg : "transparent",
-          })}
-        >
-          Training
-        </NavLink>
-        <NavLink
-          to="/projects"
-          style={({ isActive }) => ({
-            ...baseStyle,
-            backgroundColor: isActive ? activeBg : "transparent",
-          })}
-        >
-          Projects
-        </NavLink>
-        {user?.role === "admin" && (
-          <NavLink
-            to="/admin"
-            style={({ isActive }) => ({
-              ...baseStyle,
-              backgroundColor: isActive ? activeBg : "transparent",
-            })}
-          >
-            Admin
-          </NavLink>
-        )}
-        <NavLink
-          to="/review"
-          style={({ isActive }) => ({
-            ...baseStyle,
-            backgroundColor: isActive ? activeBg : "transparent",
-          })}
-        >
-          Code Review
-        </NavLink>
+        </ul>
       </nav>
-    </aside>
+    </div>
   );
 };
 

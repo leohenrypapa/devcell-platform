@@ -394,8 +394,10 @@ def admin_update_user(
         conn.close()
         return None
 
-    current_role = row["role"]
-    current_is_active = bool(row.get("is_active", 1))
+    data = dict(row)
+    current_role = data["role"]
+    # default to active if column is NULL or missing
+    current_is_active = bool(data.get("is_active", 1))
 
     is_current_admin = current_role == "admin" and current_is_active
 
