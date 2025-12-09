@@ -1,10 +1,9 @@
 // frontend/src/features/dashboard/DashboardSummaryCard.tsx
 import React from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 
 import Card from "../../ui/Card";
 import type { DashboardSummary } from "./useDashboardSummary";
+import DashboardMarkdown from "./DashboardMarkdown";
 
 type Props = {
   data: DashboardSummary | null;
@@ -37,94 +36,45 @@ const DashboardSummaryCard: React.FC<Props> = ({ data, loading, error }) => {
           </h2>
 
           {loading && (
-            <p style={{ fontSize: "0.9rem", opacity: 0.75 }}>
+            <p
+              style={{
+                fontSize: "0.9rem",
+                opacity: 0.75,
+              }}
+            >
               Generating summary…
             </p>
           )}
 
           {error && !loading && (
-            <p style={{ fontSize: "0.9rem", color: "#dc2626" }}>{error}</p>
+            <p
+              style={{
+                fontSize: "0.9rem",
+                color: "#dc2626",
+              }}
+            >
+              {error}
+            </p>
           )}
 
           {!loading && !error && summary && (
-            <div style={{ fontSize: "0.95rem", lineHeight: 1.5 }}>
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                components={{
-                  h1: ({ children }) => (
-                    <h1
-                      style={{
-                        margin: "0 0 0.4rem",
-                        fontSize: "var(--dc-font-size-lg)",
-                        fontWeight: 600,
-                      }}
-                    >
-                      {children}
-                    </h1>
-                  ),
-                  h2: ({ children }) => (
-                    <h2
-                      style={{
-                        margin: "0.4rem 0 0.3rem",
-                        fontSize: "var(--dc-font-size-md)",
-                        fontWeight: 600,
-                      }}
-                    >
-                      {children}
-                    </h2>
-                  ),
-                  h3: ({ children }) => (
-                    <h3
-                      style={{
-                        margin: "0.3rem 0 0.2rem",
-                        fontSize: "var(--dc-font-size-sm)",
-                        fontWeight: 600,
-                      }}
-                    >
-                      {children}
-                    </h3>
-                  ),
-                  p: ({ children }) => (
-                    <p
-                      style={{
-                        margin: "0 0 0.4rem",
-                        fontSize: "var(--dc-font-size-sm)",
-                      }}
-                    >
-                      {children}
-                    </p>
-                  ),
-                  ul: ({ children }) => (
-                    <ul
-                      style={{
-                        margin: "0 0 0.4rem 1.2rem",
-                        padding: 0,
-                        fontSize: "var(--dc-font-size-sm)",
-                      }}
-                    >
-                      {children}
-                    </ul>
-                  ),
-                  ol: ({ children }) => (
-                    <ol
-                      style={{
-                        margin: "0 0 0.4rem 1.2rem",
-                        padding: 0,
-                        fontSize: "var(--dc-font-size-sm)",
-                      }}
-                    >
-                      {children}
-                    </ol>
-                  ),
-                }}
-              >
-                {data.summary}
-              </ReactMarkdown>
+            <div
+              style={{
+                fontSize: "0.95rem",
+                lineHeight: 1.5,
+              }}
+            >
+              <DashboardMarkdown markdown={summary} />
             </div>
           )}
 
           {!loading && !error && !summary && (
-            <p style={{ fontSize: "0.9rem", opacity: 0.75 }}>
+            <p
+              style={{
+                fontSize: "0.9rem",
+                opacity: 0.75,
+              }}
+            >
               No summary available yet.
             </p>
           )}

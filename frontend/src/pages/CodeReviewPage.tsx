@@ -5,6 +5,134 @@ import { useUser } from "../context/UserContext";
 const backendBase =
   (import.meta as any).env.VITE_BACKEND_BASE_URL || "http://localhost:9000";
 
+// Very small markdown-ish renderer for the review output.
+// Supports:
+// - "### Heading"  -> <h3>
+// - "#### Heading" -> <h4>
+// - "- item"       -> <ul><li>item</li></ul>
+// - Inline **bold** and *italic*
+// - Everything else as <p>
+
+const renderInline = (text: string): React.ReactNode => {
+  const parts: React.ReactNode[] = [];
+  const regex = /(\*\*[^*]+?\*\*|\*[^*]+?\*)/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  let key = 0;
+
+  while ((match = regex.exec(text)) !== null) {
+    // Plain text before the match
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index));
+    }
+
+    const token = match[0];
+    if (token.startsWith("**")) {
+      parts.push(
+        <strong key={`b-${key++}`}>{token.slice(2, -2)}</strong>,
+      );
+    } else if (token.startsWith("*")) {
+      parts.push(<em key={`i-${key++}`}>{token.slice(1, -1)}</em>);
+    }
+
+    lastIndex = match.index + token.length;
+  }
+
+  // Remaining plain text after the last match
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+
+  return parts;
+};
+
+const renderReviewContent = (review: string): React.ReactNode => {
+  const lines = review.split("\n");
+  const elements: React.ReactNode[] = [];
+  let listItems: string[] = [];
+
+  const flushList = () => {
+    if (listItems.length === 0) return;
+    const items = listItems.map((text, idx) => (
+      <li key={`li-${elements.length}-${idx}`}>{renderInline(text)}</li>
+    ));
+    elements.push(
+      <ul
+        key={`ul-${elements.length}`}
+        style={{
+          margin: "0.25rem 0 0.4rem 1.2rem",
+          padding: 0,
+          fontSize: "0.85rem",
+        }}
+      >
+        {items}
+      </ul>,
+    );
+    listItems = [];
+  };
+
+  lines.forEach((rawLine, i) => {
+    const line = rawLine.trim();
+
+    if (!line) {
+      flushList();
+      return;
+    }
+
+    if (line.startsWith("- ")) {
+      // List item (will be rendered with renderInline)
+      listItems.push(line.slice(2));
+      return;
+    }
+
+    // If we hit a non-list line, flush any pending list
+    flushList();
+
+    if (line.startsWith("#### ")) {
+      elements.push(
+        <h4
+          key={`h4-${i}`}
+          style={{
+            margin: "0.5rem 0 0.2rem",
+            fontSize: "0.92rem",
+            fontWeight: 600,
+          }}
+        >
+          {renderInline(line.slice(5))}
+        </h4>,
+      );
+    } else if (line.startsWith("### ")) {
+      elements.push(
+        <h3
+          key={`h3-${i}`}
+          style={{
+            margin: "0.6rem 0 0.25rem",
+            fontSize: "1rem",
+            fontWeight: 600,
+          }}
+        >
+          {renderInline(line.slice(4))}
+        </h3>,
+      );
+    } else {
+      elements.push(
+        <p
+          key={`p-${i}`}
+          style={{
+            margin: "0.1rem 0 0.35rem",
+            fontSize: "0.85rem",
+          }}
+        >
+          {renderInline(line)}
+        </p>,
+      );
+    }
+  });
+
+  flushList();
+  return elements;
+};
+
 const CodeReviewPage: React.FC = () => {
   const { token } = useUser();
 
@@ -13,6 +141,8 @@ const CodeReviewPage: React.FC = () => {
   const [review, setReview] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastReviewedAt, setLastReviewedAt] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const hasCode = code.trim().length > 0;
 
@@ -25,6 +155,7 @@ const CodeReviewPage: React.FC = () => {
     setLoading(true);
     setError(null);
     setReview(null);
+    setCopied(false);
 
     try {
       const res = await fetch(`${backendBase}/api/review`, {
@@ -46,6 +177,7 @@ const CodeReviewPage: React.FC = () => {
 
       const data: { review: string } = await res.json();
       setReview(data.review);
+      setLastReviewedAt(new Date().toISOString());
     } catch (err: unknown) {
       // eslint-disable-next-line no-console
       console.error(err);
@@ -65,7 +197,44 @@ const CodeReviewPage: React.FC = () => {
     setExtraContext("");
     setReview(null);
     setError(null);
+    setLastReviewedAt(null);
+    setCopied(false);
   };
+
+  const handleCopyReview = () => {
+    if (!review || !navigator.clipboard) {
+      return;
+    }
+
+    void navigator.clipboard
+      .writeText(review)
+      .then(() => {
+        setCopied(true);
+        window.setTimeout(() => setCopied(false), 1500);
+      })
+      .catch(() => {
+        // ignore copy failures silently
+      });
+  };
+
+  let lastReviewedLabel: string | null = null;
+  if (lastReviewedAt) {
+    try {
+      const d = new Date(lastReviewedAt);
+      lastReviewedLabel = d.toLocaleTimeString(undefined, {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch {
+      lastReviewedLabel = null;
+    }
+  }
+
+  const statusLabel = loading
+    ? "Reviewing…"
+    : lastReviewedLabel
+    ? `Last run ${lastReviewedLabel}`
+    : "Idle";
 
   return (
     <div className="dc-page">
@@ -113,11 +282,31 @@ const CodeReviewPage: React.FC = () => {
             style={{
               fontSize: "0.8rem",
               textAlign: "right",
-              opacity: 0.8,
+              display: "flex",
+              flexDirection: "column",
+              gap: "0.25rem",
+              alignItems: "flex-end",
             }}
           >
-            <div>Backend: <code>/api/review</code></div>
+            <div>
+              Backend: <code>/api/review</code>
+            </div>
             <div>Authentication: {token ? "using JWT" : "anonymous"}</div>
+            <div
+              style={{
+                marginTop: "0.15rem",
+                padding: "0.1rem 0.5rem",
+                borderRadius: "999px",
+                border: "1px solid var(--dc-border-subtle, #d1d5db)",
+                background: loading
+                  ? "var(--dc-surface-muted, #fee2e2)"
+                  : "var(--dc-surface-subtle, #f3f4f6)",
+                fontSize: "0.75rem",
+                fontWeight: 500,
+              }}
+            >
+              {statusLabel}
+            </div>
           </div>
         </header>
 
@@ -289,8 +478,7 @@ const CodeReviewPage: React.FC = () => {
                     textAlign: "right",
                   }}
                 >
-                  Paste only what&apos;s needed. No code is sent
-                  externally.
+                  Paste only what&apos;s needed. No code is sent externally.
                 </div>
               </div>
             </form>
@@ -310,15 +498,59 @@ const CodeReviewPage: React.FC = () => {
               minHeight: 0,
             }}
           >
-            <h2
+            <div
               style={{
-                marginTop: 0,
-                marginBottom: "0.5rem",
-                fontSize: "1rem",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "0.5rem",
+                marginBottom: "0.35rem",
               }}
             >
-              Review output
-            </h2>
+              <h2
+                style={{
+                  margin: 0,
+                  fontSize: "1rem",
+                }}
+              >
+                Review output
+              </h2>
+
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.4rem",
+                  fontSize: "0.8rem",
+                }}
+              >
+                {lastReviewedLabel && (
+                  <span
+                    style={{
+                      opacity: 0.75,
+                    }}
+                  >
+                    Last run {lastReviewedLabel}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={handleCopyReview}
+                  disabled={!review}
+                  style={{
+                    padding: "0.25rem 0.6rem",
+                    borderRadius: "999px",
+                    border:
+                      "1px solid var(--dc-border-subtle, #d1d5db)",
+                    background: "var(--dc-surface-card, #ffffff)",
+                    cursor: review ? "pointer" : "not-allowed",
+                    fontSize: "0.75rem",
+                  }}
+                >
+                  {copied ? "Copied" : "Copy"}
+                </button>
+              </div>
+            </div>
 
             {!review && !loading && (
               <p
@@ -358,13 +590,12 @@ const CodeReviewPage: React.FC = () => {
                   border:
                     "1px solid var(--dc-border-subtle, #d0d7de)",
                   background: "var(--dc-surface-card, #ffffff)",
-                  whiteSpace: "pre-wrap",
                   fontSize: "0.85rem",
                   lineHeight: 1.4,
                   overflowY: "auto",
                 }}
               >
-                {review}
+                {renderReviewContent(review)}
               </div>
             )}
           </section>

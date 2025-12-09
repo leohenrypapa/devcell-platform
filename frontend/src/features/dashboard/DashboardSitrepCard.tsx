@@ -1,24 +1,17 @@
 // frontend/src/features/dashboard/DashboardSitrepCard.tsx
 import React, { useState } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 
 import { useUser } from "../../context/UserContext";
 import { BACKEND_BASE } from "../../lib/backend";
 import Button from "../../ui/Button";
 import Card from "../../ui/Card";
+import DashboardMarkdown from "./DashboardMarkdown";
 
 type DashboardSitrepCardProps = {
   useRag: boolean;
 };
 
 type SitrepResponse = {
-  // You may want to tighten this once you confirm the backend shape.
-  // Common patterns:
-  // - { sitrep: string }
-  // - { markdown: string }
-  // - { report: string }
-  // - { content: string }
   [key: string]: unknown;
 };
 
@@ -63,16 +56,16 @@ const DashboardSitrepCard: React.FC<DashboardSitrepCardProps> = ({
 
       const json = (await resp.json()) as SitrepResponse;
 
-      // Try a few common keys to find the markdown content
       const maybeSitrep =
-        (typeof json.sitrep === "string" && json.sitrep) ||
-        (typeof json.markdown === "string" && json.markdown) ||
-        (typeof json.report === "string" && json.report) ||
-        (typeof json.content === "string" && json.content) ||
+        (typeof (json as any).sitrep === "string" && (json as any).sitrep) ||
+        (typeof (json as any).markdown === "string" &&
+          (json as any).markdown) ||
+        (typeof (json as any).report === "string" && (json as any).report) ||
+        (typeof (json as any).content === "string" &&
+          (json as any).content) ||
         null;
 
       if (!maybeSitrep) {
-        // Fallback: show the JSON for debugging / first-wire-up
         setSitrep("```json\n" + JSON.stringify(json, null, 2) + "\n```");
       } else {
         setSitrep(maybeSitrep);
@@ -122,8 +115,8 @@ const DashboardSitrepCard: React.FC<DashboardSitrepCardProps> = ({
               color: "var(--dc-text-muted)",
             }}
           >
-            The SITREP always pulls from recent standups, tasks, projects, and
-            the knowledgebase. Use this field to highlight specific missions,
+            The SITREP pulls from recent standups, tasks, projects, and the
+            knowledgebase. Use this field to highlight specific missions,
             priorities, or audiences.
           </p>
           <textarea
@@ -196,42 +189,7 @@ const DashboardSitrepCard: React.FC<DashboardSitrepCardProps> = ({
               fontSize: "var(--dc-font-size-sm)",
             }}
           >
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              components={{
-                p: ({ children }) => (
-                  <p
-                    style={{
-                      margin: "0 0 0.4rem",
-                    }}
-                  >
-                    {children}
-                  </p>
-                ),
-                ul: ({ children }) => (
-                  <ul
-                    style={{
-                      margin: "0 0 0.4rem 1.1rem",
-                      padding: 0,
-                    }}
-                  >
-                    {children}
-                  </ul>
-                ),
-                ol: ({ children }) => (
-                  <ol
-                    style={{
-                      margin: "0 0 0.4rem 1.1rem",
-                      padding: 0,
-                    }}
-                  >
-                    {children}
-                  </ol>
-                ),
-              }}
-            >
-              {sitrep}
-            </ReactMarkdown>
+            <DashboardMarkdown markdown={sitrep} />
           </div>
         )}
 
