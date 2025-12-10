@@ -46,10 +46,19 @@ def register(payload: UserCreate):
     Rules:
     - If this is the FIRST user in the system, they become admin.
     - Otherwise, new users are created as role='user' (payload.role is ignored).
+    - Username is trimmed and treated case-insensitively for uniqueness.
     - Profile fields (display_name, job_title, team_name, rank, skills) are accepted.
     - Returns a LoginResponse so the frontend can auto-login after registration.
     """
-    if get_user_by_username(payload.username):
+    username = payload.username.strip()
+    if not username:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Username cannot be empty or whitespace",
+        )
+
+    # Case-insensitive duplicate check
+    if get_user_by_username(username):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Username already exists",
@@ -63,7 +72,7 @@ def register(payload: UserCreate):
         role = "user"
 
     user = create_user(
-        username=payload.username,
+        username=username,
         raw_password=payload.password,
         role=role,
         display_name=payload.display_name,
@@ -86,11 +95,19 @@ def login(payload: LoginRequest):
     """
     Login with username + password.
 
-    If credentials are valid:
-    - Issues a session token.
-    - Returns LoginResponse { access_token, user }.
+    - Username is trimmed and matched case-insensitively.
+    - If credentials are valid:
+      - Issues a session token.
+      - Returns LoginResponse { access_token, user }.
     """
-    user = verify_user_credentials(payload.username, payload.password)
+    username = payload.username.strip()
+    if not username:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Username cannot be empty or whitespace",
+        )
+
+    user = verify_user_credentials(username, payload.password)
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -241,12 +258,19 @@ def admin_create_user(
     """
     Create a new user (admin only).
 
-    - Username must be unique
+    - Username must be unique (case-insensitively)
     - Role is set by admin (required in payload)
     - Allowed roles: 'user', 'admin'
     - All profile fields are optional and passed to create_user
     """
-    if get_user_by_username(payload.username):
+    username = payload.username.strip()
+    if not username:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Username cannot be empty or whitespace",
+        )
+
+    if get_user_by_username(username):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Username already exists",
@@ -259,7 +283,7 @@ def admin_create_user(
         )
 
     user = create_user(
-        username=payload.username,
+        username=username,
         raw_password=payload.password,
         role=payload.role,
         display_name=payload.display_name,

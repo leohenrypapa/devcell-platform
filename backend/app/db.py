@@ -4,11 +4,19 @@ from pathlib import Path
 import sqlite3
 
 
-BASE_DIR = Path(__file__).resolve().parents[2]
+# Base directory for the backend package (…/backend)
+BASE_DIR = Path(__file__).resolve().parents[1]
+
+# SQLite DB path: backend/devcell.db
 DB_PATH = BASE_DIR / "devcell.db"
 
 
 def get_connection() -> sqlite3.Connection:
+    """
+    Open a new SQLite connection to the DevCell database.
+
+    The connection uses Row factory so rows behave like dicts.
+    """
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
@@ -67,7 +75,7 @@ def init_db() -> None:
         """
     )
 
-    # NEW: Project members table (project-level permissions)
+    # Project members table (project-level permissions)
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS project_members (
@@ -130,3 +138,6 @@ def init_db() -> None:
 
     conn.commit()
     conn.close()
+
+    # Helpful log so you always know which DB file is being used
+    print(f"[DB] Initialized SQLite database at: {DB_PATH}")

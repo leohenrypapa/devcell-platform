@@ -1,5 +1,53 @@
 {
   "documents": {
+    "/home/llm/devcell-platform/backend/app/knowledgebase/notes/devcell-platform-quick-overview-1765396691.md": {
+      "chunks": [
+        {
+          "chunk_hash": "9b63c6df043831c83e39a6cd3fa1313404878178",
+          "chunk_id": "57be8c27ccb4cdc1bedf45fdb84007ece3536003",
+          "index": 0
+        }
+      ],
+      "file_hash": "f495be0e9857bf8336611caf87e85094957d8368",
+      "mtime": 1765396691.7515068,
+      "title": "devcell-platform-quick-overview-1765396691"
+    },
+    "/home/llm/devcell-platform/backend/app/knowledgebase/notes/guide-daily-standups-and-ai-summaries-1765396706.md": {
+      "chunks": [
+        {
+          "chunk_hash": "2cf0306a97329cdc4b990322c02d60ac46c7828d",
+          "chunk_id": "63ba72f762a2cab70e0b3662402248375d16bdef",
+          "index": 0
+        }
+      ],
+      "file_hash": "01d20ffada564f5520348e2dad579ece1ce3e09b",
+      "mtime": 1765396706.6113975,
+      "title": "guide-daily-standups-and-ai-summaries-1765396706"
+    },
+    "/home/llm/devcell-platform/backend/app/knowledgebase/notes/guide-getting-good-answers-from-rag-1765396739.md": {
+      "chunks": [
+        {
+          "chunk_hash": "3640ec4e328ccf710102d79add955881dac8d3ca",
+          "chunk_id": "5a30b9cfeb5036d5ab5539902019a0ea208a0fc1",
+          "index": 0
+        }
+      ],
+      "file_hash": "44e7638715c9374e35969f6d51660fa34c6392eb",
+      "mtime": 1765396739.092158,
+      "title": "guide-getting-good-answers-from-rag-1765396739"
+    },
+    "/home/llm/devcell-platform/backend/app/knowledgebase/notes/guide-writing-good-knowledge-base-notes-1765396713.md": {
+      "chunks": [
+        {
+          "chunk_hash": "2f2d2a445c35731bda39a7dcba695e91927236b2",
+          "chunk_id": "4690cd2b192072a5e2b9d91ab0dc0a82ca4f4166",
+          "index": 0
+        }
+      ],
+      "file_hash": "a1c95172351c984c8f078e9e13da2e5697b23a62",
+      "mtime": 1765396713.8993437,
+      "title": "guide-writing-good-knowledge-base-notes-1765396713"
+    },
     "/home/llm/devcell-platform/backend/app/knowledgebase/notes/qwerasdf-1765385058.md": {
       "chunks": [
         {
@@ -11,6 +59,54 @@
       "file_hash": "f98b6de534823869219027e95a0d587f2b6e5d68",
       "mtime": 1765385058.7587364,
       "title": "qwerasdf-1765385058"
+    },
+    "/home/llm/devcell-platform/backend/app/knowledgebase/notes/sop-malware-lab-safety-and-scope-1765396731.md": {
+      "chunks": [
+        {
+          "chunk_hash": "b2e72a40055b0a78c9c0607fb5fa794b7d75a4af",
+          "chunk_id": "f425822a7714063999066d4856875aa58706035b",
+          "index": 0
+        }
+      ],
+      "file_hash": "7e7881facc15ac067dfe8291fa0369379ab45aef",
+      "mtime": 1765396731.0762172,
+      "title": "sop-malware-lab-safety-and-scope-1765396731"
+    },
+    "/home/llm/devcell-platform/backend/app/knowledgebase/notes/sop-tasks-and-projects-workflow-1765396698.md": {
+      "chunks": [
+        {
+          "chunk_hash": "4fb797cfb52137ef8c5b7a25cffdaf4543ec4dbf",
+          "chunk_id": "a5e2cbfd55655cdd99a29bcf91c6f0548b16247f",
+          "index": 0
+        }
+      ],
+      "file_hash": "0f71e525cf2fed2eced8961c1e9fe72b226714dc",
+      "mtime": 1765396698.6934557,
+      "title": "sop-tasks-and-projects-workflow-1765396698"
+    },
+    "/home/llm/devcell-platform/backend/app/knowledgebase/notes/template-incident-exercise-summary-1765396747.md": {
+      "chunks": [
+        {
+          "chunk_hash": "6db459a6cf8d477e1c2d7485fee4efa658dbbdce",
+          "chunk_id": "f7e4c81f8f0192d678a7cf10631b60b17e519822",
+          "index": 0
+        }
+      ],
+      "file_hash": "5cfff902d1aab557040c38b400c84cb623522312",
+      "mtime": 1765396747.227098,
+      "title": "template-incident-exercise-summary-1765396747"
+    },
+    "/home/llm/devcell-platform/backend/app/knowledgebase/notes/training-pipeline-phase-1-4-overview-1765396720.md": {
+      "chunks": [
+        {
+          "chunk_hash": "e14f1919abba4cfe1c988675ee0ee04fd9c07aec",
+          "chunk_id": "af9aeafa9fd4b2de5b1cf9ea4aa297218f23db17",
+          "index": 0
+        }
+      ],
+      "file_hash": "ebf0bd7ee282e8b51930119c04d498302ad392bc",
+      "mtime": 1765396720.794293,
+      "title": "training-pipeline-phase-1-4-overview-1765396720"
     }
   },
   "version": 1

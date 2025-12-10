@@ -9,6 +9,20 @@ export interface KnowledgeDocument {
   content_preview: string;
 }
 
+// Strip leading "[notes]" / "[knowledgebase]" labels from display title
+function extractRawTitle(displayTitle: string): string {
+  if (!displayTitle || !displayTitle.startsWith("[")) {
+    return displayTitle;
+  }
+
+  const closing = displayTitle.indexOf("]");
+  if (closing === -1 || closing + 1 >= displayTitle.length) {
+    return displayTitle;
+  }
+
+  return displayTitle.slice(closing + 1).trim();
+}
+
 const backendBase =
   (import.meta as any).env.VITE_BACKEND_BASE_URL || "http://localhost:9000";
 
@@ -66,6 +80,8 @@ export const useKnowledgeDocuments = (): UseKnowledgeDocumentsResult => {
 
   const deleteDocument = async (doc: KnowledgeDocument) => {
     try {
+      const rawTitle = extractRawTitle(doc.title);
+
       const res = await fetch(`${backendBase}/api/knowledge/delete_document`, {
         method: "POST",
         headers: {
@@ -73,7 +89,7 @@ export const useKnowledgeDocuments = (): UseKnowledgeDocumentsResult => {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
-          title: doc.title,
+          title: rawTitle,
           path: doc.path ?? null,
         }),
       });

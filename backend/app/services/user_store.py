@@ -16,6 +16,16 @@ PASSWORD_SALT = "devcell-demo-salt"
 SESSION_LIFETIME_HOURS = 8
 
 
+def _normalize_username(username: str) -> str:
+    """
+    Normalize username for storage and lookup.
+
+    - Strips leading/trailing whitespace.
+    - (Case is preserved in storage, but lookups are done case-insensitively.)
+    """
+    return username.strip()
+
+
 def _hash_password(raw_password: str) -> str:
     data = (PASSWORD_SALT + raw_password).encode("utf-8")
     return hashlib.sha256(data).hexdigest()
@@ -56,9 +66,21 @@ def count_users() -> int:
 
 
 def get_user_by_username(username: str) -> Optional[UserPublic]:
+    """
+    Case-insensitive lookup of a user by username.
+    """
+    normalized = _normalize_username(username)
+
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("SELECT * FROM users WHERE username = ?", (username,))
+    cur.execute(
+        """
+        SELECT *
+        FROM users
+        WHERE LOWER(username) = LOWER(?)
+        """,
+        (normalized,),
+    )
     row = cur.fetchone()
     conn.close()
     if row is None:
@@ -95,6 +117,7 @@ def create_user(
     NOTE: all new users should normally be created with role='user' unless an
     existing admin is intentionally creating another admin.
     """
+    normalized_username = _normalize_username(username)
     password_hash = _hash_password(raw_password)
     created_at = datetime.now().isoformat()
     is_active_int = 1 if is_active else 0
@@ -118,7 +141,7 @@ def create_user(
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
-            username,
+            normalized_username,
             password_hash,
             role,
             created_at,
@@ -148,6 +171,7 @@ def verify_user_credentials(username: str, raw_password: str) -> Optional[UserPu
     Verify username/password and return UserPublic if valid.
     Only returns active users (is_active = 1) if that column exists.
     """
+    normalized_username = _normalize_username(username)
     password_hash = _hash_password(raw_password)
 
     conn = get_connection()
@@ -156,10 +180,10 @@ def verify_user_credentials(username: str, raw_password: str) -> Optional[UserPu
         """
         SELECT *
         FROM users
-        WHERE username = ?
+        WHERE LOWER(username) = LOWER(?)
           AND password_hash = ?
         """,
-        (username, password_hash),
+        (normalized_username, password_hash),
     )
     row = cur.fetchone()
     conn.close()
@@ -271,6 +295,8 @@ def get_user_by_token(token: str) -> Optional[UserPublic]:
         session_created = datetime.fromisoformat(session_created_str)
     except Exception:
         # If parsing fails, treat token as invalid.
+        cur.execute("DELETE FROM sessions WHERE token = ?", (token,))
+        conn.commit()
         conn.close()
         return None
 

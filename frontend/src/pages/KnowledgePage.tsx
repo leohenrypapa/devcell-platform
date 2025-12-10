@@ -17,8 +17,11 @@ import KnowledgeDocumentList from "../features/knowledge/KnowledgeDocumentList";
 import KnowledgeDocumentViewer from "../features/knowledge/KnowledgeDocumentViewer";
 import KnowledgeAnswerCard from "../features/knowledge/KnowledgeAnswerCard";
 import KnowledgeSourcesList from "../features/knowledge/KnowledgeSourcesList";
+
 import PageHeader from "../ui/PageHeader";
 import RagStatusChip from "../components/RagStatusChip";
+
+import styles from "./KnowledgePage.module.css";
 
 const KnowledgePage: React.FC = () => {
   const { isAuthenticated } = useUser();
@@ -43,7 +46,7 @@ const KnowledgePage: React.FC = () => {
       <div className="dc-page-inner">
         <PageHeader
           title="Knowledgebase"
-          description="Ask questions against your indexed documents, add free-text notes, or upload files. This is your unit’s mini knowledge graph backed by local LLM + RAG."
+          description="Ask questions against your indexed docs, notes, and training material. This is your unit’s mini knowledge graph backed by local LLM + RAG."
           actions={<RagStatusChip />}
         />
 
@@ -61,23 +64,10 @@ const KnowledgePage: React.FC = () => {
           </p>
         )}
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "minmax(0, 2fr) minmax(0, 1.4fr)",
-            gap: "1.25rem",
-            alignItems: "stretch",
-          }}
-        >
-          {/* LEFT COLUMN: Query + Answer */}
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "0.9rem",
-              minWidth: 0,
-            }}
-          >
+        {/* Two-column workspace layout */}
+        <div className={styles.layout}>
+          {/* LEFT COLUMN — Ask + Answer + Sources */}
+          <section className={styles.leftPane} aria-label="Knowledge query">
             <KnowledgeQuerySection
               question={query.question}
               setQuestion={query.setQuestion}
@@ -87,80 +77,83 @@ const KnowledgePage: React.FC = () => {
             />
 
             {/* Answer / Sources region */}
-            {query.loading && !query.answer && (
-              <div
-                style={{
-                  borderRadius: "var(--dc-radius-md)",
-                  border: "1px solid var(--dc-border-subtle)",
-                  background:
-                    "linear-gradient(90deg, var(--dc-bg-subtle), var(--dc-bg-surface), var(--dc-bg-subtle))",
-                  backgroundSize: "200% 100%",
-                  padding: "0.9rem",
-                  fontSize: "var(--dc-font-size-sm)",
-                  color: "var(--dc-text-muted)",
-                }}
-              >
-                The model is generating an answer using your knowledgebase…
-              </div>
-            )}
+            <div className={styles.answerRegion}>
+              {query.loading && !query.answer && (
+                <div
+                  style={{
+                    borderRadius: "var(--dc-radius-md)",
+                    border: "1px solid var(--dc-border-subtle)",
+                    background:
+                      "linear-gradient(90deg, var(--dc-bg-subtle), var(--dc-bg-surface), var(--dc-bg-subtle))",
+                    backgroundSize: "200% 100%",
+                    padding: "0.9rem",
+                    fontSize: "var(--dc-font-size-sm)",
+                    color: "var(--dc-text-muted)",
+                  }}
+                >
+                  The model is generating an answer using your knowledgebase…
+                </div>
+              )}
 
-            {query.error && (
-              <div
-                style={{
-                  borderRadius: "var(--dc-radius-md)",
-                  border: "1px solid rgba(220,38,38,0.4)",
-                  backgroundColor: "rgba(220,38,38,0.05)",
-                  padding: "0.7rem 0.8rem",
-                  fontSize: "var(--dc-font-size-sm)",
-                  color: "var(--dc-color-danger)",
-                }}
-              >
-                {query.error}
-              </div>
-            )}
+              {query.error && (
+                <div
+                  style={{
+                    borderRadius: "var(--dc-radius-md)",
+                    border: "1px solid rgba(220,38,38,0.4)",
+                    backgroundColor: "rgba(220,38,38,0.05)",
+                    padding: "0.7rem 0.8rem",
+                    fontSize: "var(--dc-font-size-sm)",
+                    color: "var(--dc-color-danger)",
+                  }}
+                >
+                  {query.error}
+                </div>
+              )}
 
-            {query.answer && (
-              <>
-                <KnowledgeAnswerCard answer={query.answer} />
-                <KnowledgeSourcesList sources={query.sources} />
-              </>
-            )}
+              {query.answer && (
+                <>
+                  <KnowledgeAnswerCard answer={query.answer} />
+                  <KnowledgeSourcesList sources={query.sources} />
+                </>
+              )}
 
-            {!query.loading && !query.answer && !query.error && (
-              <p
-                style={{
-                  margin: 0,
-                  marginTop: "0.35rem",
-                  fontSize: "var(--dc-font-size-xs)",
-                  color: "var(--dc-text-muted)",
-                }}
-              >
-                Tip: Ask high-level questions like{" "}
-                <strong>
-                  “Summarize our current malware dev training plan and gaps.”
-                </strong>{" "}
-                to get a strategic overview from your docs.
-              </p>
-            )}
-          </div>
+              {!query.loading && !query.answer && !query.error && (
+                <p
+                  style={{
+                    margin: 0,
+                    marginTop: "0.35rem",
+                    fontSize: "var(--dc-font-size-xs)",
+                    color: "var(--dc-text-muted)",
+                  }}
+                >
+                  Tip: Ask high-level questions like{" "}
+                  <strong>
+                    “Summarize our current malware dev training plan and gaps.”
+                  </strong>{" "}
+                  to get a strategic overview from your docs.
+                </p>
+              )}
+            </div>
 
-          {/* RIGHT COLUMN: Authoring + Documents + Viewer */}
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "0.9rem",
-              minWidth: 0,
-            }}
+            {/* Optional: history section can be added here later using existing patterns */}
+          </section>
+
+          {/* RIGHT COLUMN — Authoring + Upload + Documents */}
+          <aside
+            className={styles.rightPane}
+            aria-label="Knowledge documents and ingestion"
           >
-            {/* Authoring section */}
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "0.75rem",
-              }}
+            {/* Add Text Document panel */}
+            <section
+              className={styles.panelSection}
+              aria-label="Add text document to knowledgebase"
             >
+              <h2 className={styles.panelTitle}>Add Text Document</h2>
+              <p className={styles.panelSubtitle}>
+                Paste notes, SOPs, or snippets to index them directly into the
+                knowledgebase.
+              </p>
+
               <KnowledgeAddTextForm
                 newTitle={addText.newTitle}
                 setNewTitle={addText.setNewTitle}
@@ -171,6 +164,18 @@ const KnowledgePage: React.FC = () => {
                 saveError={addText.saveError}
                 onSubmit={addText.submit}
               />
+            </section>
+
+            {/* Upload File panel */}
+            <section
+              className={styles.panelSection}
+              aria-label="Upload file to knowledgebase"
+            >
+              <h2 className={styles.panelTitle}>Upload File</h2>
+              <p className={styles.panelSubtitle}>
+                Attach PDFs, docs, or text files. They’ll be parsed and indexed
+                into the same RAG store.
+              </p>
 
               <KnowledgeUploadForm
                 uploading={upload.uploading}
@@ -180,31 +185,38 @@ const KnowledgePage: React.FC = () => {
                 onUpload={upload.upload}
                 currentFileName={upload.file ? upload.file.name : null}
               />
-            </div>
+            </section>
 
-            {/* Documents sidebar + viewer */}
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "minmax(0, 1.2fr) minmax(0, 1.8fr)",
-                gap: "0.75rem",
-                alignItems: "stretch",
-                minHeight: "12rem",
-              }}
+            {/* Indexed Document List + Viewer panel */}
+            <section
+              className={`${styles.panelSection} ${styles.documentsSection}`}
+              aria-label="Indexed documents"
             >
-              <KnowledgeDocumentList
-                documents={docs.documents}
-                docsLoading={docs.docsLoading}
-                docsError={docs.docsError}
-                onReload={docs.reloadDocuments}
-                onDelete={docs.deleteDocument}
-                selectedDocumentId={selectedDocument?.id ?? null}
-                onSelectDocument={setSelectedDocument}
-              />
+              <h2 className={styles.panelTitle}>Indexed Documents</h2>
+              <p className={styles.panelSubtitle}>
+                Browse your current corpus. Selecting a document shows a preview
+                while keeping the full content available to the RAG pipeline.
+              </p>
 
-              <KnowledgeDocumentViewer doc={selectedDocument} />
-            </div>
-          </div>
+              <div className={styles.documentsLayout}>
+                <div className={styles.documentsListWrapper}>
+                  <KnowledgeDocumentList
+                    documents={docs.documents}
+                    docsLoading={docs.docsLoading}
+                    docsError={docs.docsError}
+                    onReload={docs.reloadDocuments}
+                    onDelete={docs.deleteDocument}
+                    selectedDocumentId={selectedDocument?.id ?? null}
+                    onSelectDocument={setSelectedDocument}
+                  />
+                </div>
+
+                <div className={styles.documentViewerWrapper}>
+                  <KnowledgeDocumentViewer doc={selectedDocument} />
+                </div>
+              </div>
+            </section>
+          </aside>
         </div>
       </div>
     </div>

@@ -7,7 +7,7 @@ venv/
 backend/.venv/
 
 # SQLite DB
-devcell.db
+backend/*.db
 
 # Logs
 *.log
