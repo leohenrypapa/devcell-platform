@@ -26,6 +26,11 @@ from app.services.projects.members import (
     list_projects_for_user,
     get_user_role_for_project,
 )
+from app.services.project_permissions import (
+    require_project_view,
+    require_project_membership,
+    require_project_owner,
+)
 from app.services.project_summary import summarize_project_today
 from app.services.auth_service import get_current_user, require_admin
 from app.schemas.user import UserPublic
@@ -113,18 +118,15 @@ async def project_summary(
     project_id: int,
     current_user: UserPublic = Depends(get_current_user),
 ):
-    proj = get_project_by_id(project_id)
-    if proj is None:
-        raise HTTPException(status_code=404, detail="Project not found")
+    """
+    View a project's summary.
 
-    # Simple membership check: must be owner/member/viewer or admin
-    if current_user.role != "admin":
-        role = get_user_role_for_project(project_id, current_user.username)
-        if role is None and current_user.username != proj.owner:
-            raise HTTPException(
-                status_code=403,
-                detail="Not allowed to view this project summary",
-            )
+    Allowed if:
+    - user is admin, OR
+    - user is project.owner, OR
+    - user has any membership on the project (owner/member/viewer).
+    """
+    proj = require_project_view(project_id, current_user)
 
     summary, count, project_name = await summarize_project_today(project_id)
     return ProjectSummary(
@@ -148,21 +150,7 @@ def get_project_members(
     - current user is project.owner, OR
     - current user has any membership row on this project (owner/member/viewer).
     """
-    project = get_project_by_id(project_id)
-    if project is None:
-        raise HTTPException(status_code=404, detail="Project not found")
-
-    role = get_user_role_for_project(project_id, current_user.username)
-
-    if (
-        current_user.role != "admin"
-        and current_user.username != project.owner
-        and role is None
-    ):
-        raise HTTPException(
-            status_code=403,
-            detail="Not allowed to view members for this project",
-        )
+    project = require_project_membership(project_id, current_user)
 
     items = list_project_members(project_id)
     return ProjectMemberList(items=items)
@@ -181,15 +169,7 @@ def add_project_member_route(
     - current user is admin, OR
     - current user is project.owner
     """
-    project = get_project_by_id(project_id)
-    if project is None:
-        raise HTTPException(status_code=404, detail="Project not found")
-
-    if current_user.role != "admin" and current_user.username != project.owner:
-        raise HTTPException(
-            status_code=403,
-            detail="Not allowed to modify members for this project",
-        )
+    project = require_project_owner(project_id, current_user)
 
     member = add_project_member(
         project_id=project_id,
@@ -216,15 +196,7 @@ def remove_project_member_route(
     - The canonical owner (project.owner) cannot be removed from membership;
       ownership must be transferred or the project deleted instead.
     """
-    project = get_project_by_id(project_id)
-    if project is None:
-        raise HTTPException(status_code=404, detail="Project not found")
-
-    if current_user.role != "admin" and current_user.username != project.owner:
-        raise HTTPException(
-            status_code=403,
-            detail="Not allowed to modify members for this project",
-        )
+    project = require_project_owner(project_id, current_user)
 
     if username == project.owner:
         raise HTTPException(
@@ -248,15 +220,7 @@ def remove_project(
     - current user is admin, or
     - current user username matches project.owner
     """
-    project = get_project_by_id(project_id)
-    if project is None:
-        raise HTTPException(status_code=404, detail="Project not found")
-
-    if current_user.role != "admin" and current_user.username != project.owner:
-        raise HTTPException(
-            status_code=403,
-            detail="Not allowed to delete this project",
-        )
+    require_project_owner(project_id, current_user)
 
     delete_project(project_id)
     return
@@ -274,15 +238,8 @@ def edit_project(
     - current user is admin, or
     - current user username matches project.owner
     """
-    project = get_project_by_id(project_id)
-    if project is None:
-        raise HTTPException(status_code=404, detail="Project not found")
-
-    if current_user.role != "admin" and current_user.username != project.owner:
-        raise HTTPException(
-            status_code=403,
-            detail="Not allowed to edit this project",
-        )
+    # Ensure user has permission and project exists
+    require_project_owner(project_id, current_user)
 
     updated = update_project(project_id, payload)
     if updated is None:

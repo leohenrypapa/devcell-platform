@@ -1,46 +1,54 @@
 from pathlib import Path
 from typing import List, Optional
+import re
+import time
 
 from .config import KNOWLEDGE_DIR
 from .client import get_collection
+from .indexer import index_single_file
+from .paths import classify_doc_path
 from app.schemas.knowledge import KnowledgeDocument
+
+
+def _slugify(title: str) -> str:
+    slug = re.sub(r"[^a-zA-Z0-9_-]+", "-", title.strip().lower())
+    slug = slug.strip("-")
+    return slug or "note"
 
 
 def add_text_document(title: str, text: str) -> None:
     """
-    Add a text note as its own virtual document and index it.
+    Add a text note as a real markdown file under knowledgebase/notes/
+    and index it via the standard file ingestion pipeline.
+
+    This unifies text notes and file-based documents so that all
+    knowledge flows through the same chunking + manifest + indexing logic.
     """
-    collection = get_collection()
+    notes_dir = KNOWLEDGE_DIR / "notes"
+    notes_dir.mkdir(parents=True, exist_ok=True)
 
-    # simple 1-chunk-per-400 chars strategy
-    chunks = [text[i : i + 800] for i in range(0, len(text), 800)] or [text]
+    base_slug = _slugify(title)
+    timestamp = int(time.time())
+    filename = f"{base_slug}-{timestamp}.md"
+    path = notes_dir / filename
 
-    ids = []
-    metadatas = []
-    documents = []
+    # Simple markdown wrapper for the note
+    content = f"# {title}\n\n{text}\n"
+    path.write_text(content, encoding="utf-8")
 
-    for idx, chunk in enumerate(chunks):
-        doc_id = f"{title}-{idx}"
-        ids.append(doc_id)
-        metadatas.append(
-            {
-                "title": title,
-                "path": None,
-            }
-        )
-        documents.append(chunk)
-
-    collection.upsert(
-        ids=ids,
-        metadatas=metadatas,
-        documents=documents,
-    )
+    # Use the same incremental indexing pipeline as other files
+    index_single_file(path)
 
 
 def list_documents(limit: int = 1000) -> List[KnowledgeDocument]:
     """
     Return a deduplicated list of documents (title + path) based on
     what's stored in the Chroma collection metadata.
+
+    Upgrades:
+    - Classify each document by path (file/note/virtual/unknown).
+    - Sort documents by type, then title.
+    - Optionally annotate the title with a short location label.
     """
     collection = get_collection()
 
@@ -55,45 +63,62 @@ def list_documents(limit: int = 1000) -> List[KnowledgeDocument]:
     seen = set()
     docs: List[KnowledgeDocument] = []
 
-    for midx, (meta_list, doc_list) in enumerate(zip(metadatas, documents)):
+    def _append_doc(meta: dict, content: str) -> None:
+        title = meta.get("title", "Untitled")
+        path = meta.get("path")
+        key = (title, path)
+        if key in seen:
+            return
+        seen.add(key)
+
+        preview = (content or "")[:400]
+
+        doc_type, loc_label = classify_doc_path(path)
+
+        # We keep the underlying title stable for logic, but we can
+        # optionally prefix the display title with a location label.
+        display_title = f"{loc_label} {title}"
+
+        docs.append(
+            KnowledgeDocument(
+                id=f"{title}:{path}" if path else title,
+                title=display_title,
+                path=path,
+                content_preview=preview,
+            )
+        )
+
+    for meta_list, doc_list in zip(metadatas, documents):
         # Handle both flat and nested shapes
         if isinstance(meta_list, dict):
             meta = meta_list
             content = doc_list
-            title = meta.get("title", "Untitled")
-            path = meta.get("path")
-            key = (title, path)
-            if key in seen:
-                continue
-            seen.add(key)
-
-            preview = (content or "")[:400]
-            docs.append(
-                KnowledgeDocument(
-                    id=f"{title}:{path}" if path else title,
-                    title=title,
-                    path=path,
-                    content_preview=preview,
-                )
-            )
+            _append_doc(meta, content)
         else:
             for meta, content in zip(meta_list, doc_list):
-                title = meta.get("title", "Untitled")
-                path = meta.get("path")
-                key = (title, path)
-                if key in seen:
-                    continue
-                seen.add(key)
+                _append_doc(meta or {}, content or "")
 
-                preview = (content or "")[:400]
-                docs.append(
-                    KnowledgeDocument(
-                        id=f"{title}:{path}" if path else title,
-                        title=title,
-                        path=path,
-                        content_preview=preview,
-                    )
-                )
+    # Sort: file docs first, then notes, then virtual/unknown
+    type_priority = {
+        "file": 0,
+        "note": 1,
+        "virtual": 2,
+        "unknown": 3,
+    }
+
+    def _sort_key(d: KnowledgeDocument):
+        doc_type, _ = classify_doc_path(d.path)
+        # Strip label from display_title for sorting by "real" title
+        raw_title = d.title
+        # titles are like "[notes] Something" or "[knowledgebase] Other"
+        if raw_title.startswith("["):
+            # Try to strip leading [xxx]
+            closing = raw_title.find("]")
+            if closing != -1 and closing + 1 < len(raw_title):
+                raw_title = raw_title[closing + 1 :].strip()
+        return (type_priority.get(doc_type, 3), raw_title.lower())
+
+    docs.sort(key=_sort_key)
 
     return docs
 

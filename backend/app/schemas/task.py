@@ -1,3 +1,5 @@
+# backend/app/schemas/task.py
+
 from __future__ import annotations
 
 from datetime import datetime, date
@@ -51,3 +53,8 @@ class TaskEntry(TaskBase):
 
 class TaskList(BaseModel):
     items: List[TaskEntry]
+
+
+class TaskBulkUpdateRequest(BaseModel):
+    task_ids: List[int]
+    update: TaskUpdate

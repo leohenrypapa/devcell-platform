@@ -1,107 +1,135 @@
 # Knowledgebase (KB) & RAG Subsystem
 
-## Overview
-The Knowledgebase subsystem provides a unified document ingestion, embedding, indexing, and retrieval pipeline used by:
+The Knowledgebase provides DevCell’s local-first document ingestion, indexing,
+semantic search, and RAG augmentation used across:
 
-- `/api/knowledge/*`
-- RAG-enabled Chat (`/api/chat`)
-- RAG-enabled Dashboard Summary (`/api/dashboard/summary?use_rag=true`)
+- Chat  
+- Dashboard SITREPs  
+- Training automation  
+- Knowledge page UI  
 
-All RAG logic is now centralized in:
-```
+All logic is consolidated in:
+
+````
 
 backend/app/services/knowledge/
-backend/app/services/chat_service.py
-
-```
-
-A single Chroma store and a single embedding model are used across the platform.
-
----
-
-## Directory Structure
-
-```
-
-knowledgebase/           # Raw user documents
-chroma_store/            # Vector DB store
-backend/app/services/knowledge/*
-backend/app/services/chat_service.py
 
 ```
 
 ---
 
-## Document Handling
+# 🧩 Directory Layout
 
-### Supported input formats
-- `.md`, `.txt` (native)
-- `.pdf` (via PDF text extractor)
-
-### Indexing
-Each document is:
-1. Loaded
-2. Split into semantic chunks (≈300–500 tokens)
-3. Embedded using the system SentenceTransformer model
-4. Stored in the unified Chroma collection: `devcell_knowledge`
-
-Re-indexing occurs:
-- Automatically on upload
-- Automatically on delete
-- On backend startup (optional job)
-- Whenever `/api/knowledge/upload_file` completes successfully
-
-### Query / Retrieval
-Retrieval is handled by:
 ```
 
-services/knowledge/query_knowledge(query, top_k)
+knowledgebase/           → raw documents
+knowledgebase/notes/     → free-text note .md files
+chroma_store/            → vector DB (persistent)
+backend/app/services/knowledge/
+config.py
+client.py
+indexer.py
+manifest.py
+documents.py
+query.py
+paths.py
+diagnostics.py
 
-````
-
-Returns:
-```json
-[
-  {
-    "document_id": "...",
-    "title": "...",
-    "snippet": "...",
-    "score": 0.88
-  }
-]
-````
+```
 
 ---
 
-## API Summary
+# 📄 Document Types
 
-### `POST /api/knowledge/upload_file`
+| Type  | Meaning | Storage | Description |
+|-------|---------|---------|-------------|
+| file  | Uploaded via `/upload_file` | `knowledgebase/` | Long-form documents |
+| note  | Created via `/add_text` | `knowledgebase/notes/` | Quick notes |
+| virtual | Legacy notes | none | Stored only in vector store |
 
-Upload + index a file.
+Document list automatically prefixes titles:
 
-### `DELETE /api/knowledge/delete_document`
-
-Deletes a file and its vector entries.
-
-### `POST /api/knowledge/query`
-
-Semantic search only (no LLM):
-
-```json
-{ "query": "..." }
-```
-
-### RAG usage
-
-The Knowledgebase is integrated into:
-
-* Chat (`/api/chat` with `"use_rag": true`)
-* Dashboard Summary (`/api/dashboard/summary?use_rag=true`)
-* Health check (`/api/health/knowledge`)
+- `[knowledgebase] Title`
+- `[notes] Title`
 
 ---
 
-## Notes
+# 🔧 Ingestion Pipeline
 
-* Only one unified KB pipeline exists; legacy RAG code has been removed.
-* All LLM + RAG flows use the same embedding store & same metadata format.
+1. File saved under `knowledgebase/…`
+2. Text extracted (`md/txt/pdf`)
+3. Split into overlapping chunks
+4. Compute file hash + chunk hashes
+5. Compare to manifest  
+6. Only changed chunks re-embedded  
+7. Chroma upsert  
+8. Manifest updated
+
+This makes reindexing extremely fast.
+
+---
+
+# 🔍 Retrieval Pipeline
+
+1. Semantic search in Chroma  
+2. For each hit:
+   - load all chunks of the same file  
+   - build multi-chunk window (±1 neighbor)  
+3. Re-rank by doc type  
+4. Return `KnowledgeSourceChunk` objects  
+5. RAG uses these snippets to build context  
+6. Local LLM generates final answer  
+
+---
+
+# 🧠 RAG Integration
+
+Used by:
+
+- `/api/knowledge/query`
+- Chat (`use_rag: true`)
+- Dashboard summary (`use_rag: true`)
+
+Unified embedding and retrieval ensures consistent results.
+
+---
+
+# 🩺 Health & Diagnostics
+
+New endpoints:
+
+- `/knowledge/health`  
+- `/knowledge/reindex`  
+- `/knowledge/debug_document`  
+- `/knowledge/diagnostics`
+
+Useful for:
+
+- detecting missing manifest entries  
+- verifying chunk counts  
+- identifying orphaned vectors  
+- confirming indexing consistency  
+
+---
+
+# 🚀 Future Extensions
+
+- project-scoped knowledge areas  
+- document versioning  
+- inline viewer  
+- background watcher for auto-indexing  
+- KB agents for tagging & summarization  
+
+---
+
+# 📚 Related Docs
+
+- API: `../api/07_knowledge_api.md`
+- Pipeline: `../developer/04_rag_pipeline.md`
+- ADR-010: KB Model
+
+```
+
+© DevCell Platform Documentation
+
+```

@@ -1,0 +1,17 @@
+{
+  "documents": {
+    "/home/llm/devcell-platform/backend/app/knowledgebase/notes/qwerasdf-1765385058.md": {
+      "chunks": [
+        {
+          "chunk_hash": "4015ca07bbd287ccf2d92b2fc0357a25a2fdd7ad",
+          "chunk_id": "c85078f99435d079cef78dceb6550142ce768fae",
+          "index": 0
+        }
+      ],
+      "file_hash": "f98b6de534823869219027e95a0d587f2b6e5d68",
+      "mtime": 1765385058.7587364,
+      "title": "qwerasdf-1765385058"
+    }
+  },
+  "version": 1
+}

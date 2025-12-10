@@ -1,152 +1,137 @@
 # Health API
 
-The Health API provides lightweight endpoints for liveness and readiness checks
-for the DevCell backend. It is primarily used by:
+The Health API exposes lightweight endpoints for:
 
-- Docker/Kubernetes health probes
-- Reverse proxies / load balancers
-- Simple “is the backend up?” checks from the frontend
+- Backend liveness  
+- Readiness  
+- Knowledgebase subsystem health  
+- Diagnostics (optional)  
 
-These endpoints typically **do not require authentication**, but that depends on
-your deployment security posture.
+Used by load balancers, monitoring agents, and internal tools.
 
 ---
 
 # 🧩 Base URL
 
-```text
-/api/health
 ```
 
-(If your router is mounted at a different prefix, adjust accordingly.)
+/api/health
+
+````
 
 ---
 
-# 📚 Endpoints
-
----
-
-## 1. Liveness Check
-
+# 1. Liveness  
 ### `GET /api/health`
 
-Returns a simple JSON payload indicating that the backend process is alive.
-
-#### Example Response
+Process is alive.
 
 ```json
-{
-  "status": "ok"
-}
-```
-
-Typical usage:
-
-- Docker `HEALTHCHECK`  
-- Basic monitoring alarms  
-- Quick CLI checks:
-  ```bash
-  curl http://localhost:8000/api/health
-  ```
-
-If the application process is running and the route is reachable, this endpoint
-should return HTTP `200`.
+{ "status": "ok" }
+````
 
 ---
 
-## 2. Readiness / Dependency Check (Optional)
-
-If implemented in `health.py`, a separate endpoint may check dependencies such
-as:
-
-- Database connectivity
-- Knowledgebase / vector store availability
-- LLM server reachability
+# 2. Readiness
 
 ### `GET /api/health/ready`
 
-#### Example Response
+Optional. Checks dependencies (DB, LLM, KB system, etc.).
+
+---
+
+# 3. Knowledgebase Health
+
+### `GET /api/knowledge/health`
+
+Reports status of the Knowledge/RAG subsystem:
+
+* `knowledge_dir_exists`
+* `chroma_dir_exists`
+* `manifest_exists`
+* number of files
+* number of manifest entries
+* vector count
+* explanatory notes
+
+Example:
 
 ```json
 {
-  "status": "ready",
-  "checks": {
-    "database": "ok",
-    "llm": "ok",
-    "knowledgebase": "ok"
-  }
-}
-```
-
-If any dependency fails, the endpoint may return HTTP `503` with details:
-
-```json
-{
-  "status": "degraded",
-  "checks": {
-    "database": "ok",
-    "llm": "unreachable",
-    "knowledgebase": "ok"
-  }
+  "status": "ok",
+  "knowledge_dir_exists": true,
+  "chroma_dir_exists": true,
+  "manifest_exists": true,
+  "documents_in_manifest": 12,
+  "files_in_knowledge_dir": 14,
+  "vector_count": 430,
+  "notes": []
 }
 ```
 
 ---
 
-# 🔐 Authentication
+# 4. Reindex
 
-In most deployments:
+### `POST /api/knowledge/reindex`
 
-- `GET /api/health` is **unauthenticated** for infra probes.
-- `GET /api/health/ready` may be:
-  - unauthenticated (for cluster orchestration), or
-  - protected (if you want to hide internal topology).
+Runs full **incremental** reindex.
 
-This is controlled at the router or dependency-injection layer.
+Useful when:
 
----
+* new files added manually
+* manifest corrupted
+* diagnostics suggests inconsistencies
 
-# ⚠️ Error Responses
-
-| Code | Meaning                            |
-|------|------------------------------------|
-| `500`| Unhandled error in health handler |
-| `503`| One or more dependencies failing  |
-
-Clients should treat `503` as “backend is running but not ready for traffic”.
+Returns same payload as `/knowledge/health`.
 
 ---
 
-# 🧪 Example Usage
+# 5. Diagnostics
 
-### Dockerfile
+### `GET /api/knowledge/diagnostics?limit_files=500`
 
-```dockerfile
-HEALTHCHECK --interval=30s --timeout=3s --retries=3 CMD curl -f http://localhost:8000/api/health || exit 1
+Detects:
+
+* files with unreadable/no text
+* missing manifest entries
+* missing vectors
+* orphaned manifest references
+* general KB inconsistencies
+
+Used during development and debugging.
+
+---
+
+# 6. Debug Single Document
+
+### `GET /api/knowledge/debug_document?path=...`
+
+Deep inspection:
+
+* file exists?
+* extractable text length
+* manifest entry
+* chunk count
+* vector count
+* sample snippet
+* status classification
+
+---
+
+# Authentication
+
+* `/api/health` → usually **unauthenticated**
+* Knowledge health endpoints → require authentication
+
+---
+
+# Related Docs
+
+* Knowledge API → `../api/07_knowledge_api.md`
+* Knowledge Module → `../modules/06_knowledge.md`
+* RAG Pipeline → `../developer/04_rag_pipeline.md`
+
 ```
-
-### Kubernetes Readiness Probe
-
-```yaml
-readinessProbe:
-  httpGet:
-    path: /api/health/ready
-    port: 8000
-  initialDelaySeconds: 5
-  periodSeconds: 10
-```
-
----
-
-# 📚 Related Documents
-
-- Auth API → `auth_api.md`
-- Tasks API → `tasks_api.md`
-- Dashboard API → `dashboard_api.md`
-- Deployment / Ops Docs → `../04_Operations.md`
-
----
-
-```text
-© DevCell Platform Documentation — DevCell Platform
+© DevCell Platform Documentation
 ```

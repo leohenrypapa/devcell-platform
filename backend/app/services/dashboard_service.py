@@ -2,8 +2,10 @@
 from pathlib import Path
 from typing import Tuple
 
+from app.schemas.user import UserPublic
 from app.services.standup_store import get_today_standups
 from app.services.projects import list_projects
+from app.services.projects.members import list_projects_for_user
 from app.services.chat_service import chat_with_optional_rag
 from app.core.llm_client import llm_chat
 from app.services.knowledge import KNOWLEDGE_DIR
@@ -25,7 +27,10 @@ def _count_knowledge_docs() -> int:
     return count
 
 
-async def summarize_dashboard(use_rag: bool = False) -> Tuple[str, int, int, int]:
+async def summarize_dashboard(
+    current_user: UserPublic,
+    use_rag: bool = False,
+) -> Tuple[str, int, int, int]:
     """
     Build a high-level summary of today's activity:
     - standups
@@ -34,13 +39,23 @@ async def summarize_dashboard(use_rag: bool = False) -> Tuple[str, int, int, int
 
     Returns (summary, standup_count, project_count, knowledge_docs).
 
+    Permission model:
+    - If current_user.role == 'admin': include all projects.
+    - Otherwise: include only projects the user is a member/owner of.
+
     Behavior:
     - If use_rag = False: use the original standalone llm_chat prompt.
     - If use_rag = True: call the unified chat_with_optional_rag(...) helper,
       which may also pull Knowledgebase context.
     """
     standups = get_today_standups()
-    projects = list_projects()
+
+    # Project visibility depends on the current user.
+    if getattr(current_user, "role", None) == "admin":
+        projects = list_projects()
+    else:
+        projects = list_projects_for_user(current_user.username)
+
     knowledge_docs = _count_knowledge_docs()
 
     standup_count = len(standups)

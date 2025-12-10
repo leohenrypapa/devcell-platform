@@ -1,8 +1,16 @@
 # Knowledgebase API
 
-The Knowledgebase API manages documents used for contextual assistance, reference
-material, and Retrieval-Augmented Generation (RAG). It supports uploading,
-listing, deleting documents, and performing RAG queries over the stored content.
+The Knowledgebase API manages DevCell’s local-first document ingestion, indexing,
+semantic retrieval, and RAG-assisted question answering.
+
+It supports:
+
+- Uploading files  
+- Adding markdown text notes  
+- Incremental indexing into the vector store  
+- Listing and deleting documents  
+- Semantic search + RAG  
+- Health, reindex, and diagnostics
 
 All endpoints require authentication.
 
@@ -10,25 +18,24 @@ All endpoints require authentication.
 
 # 🧩 Base URL
 
-```text
+```
+
 /api/knowledge
+
 ````
 
 ---
 
-# 🔐 Permissions Overview
+# 🔐 Permissions
 
-The Knowledgebase is **workspace-wide**, not project-scoped.
-
-| Operation       | Permission                    |
-| --------------- | ----------------------------- |
-| List documents  | Any authenticated user        |
-| Upload document | Any authenticated user        |
-| Add text note   | Any authenticated user        |
-| Delete document | Admin only (or uploader, TBD) |
-| RAG query       | Any authenticated user        |
-
-Documents are globally visible unless future project scoping is introduced.
+| Operation              | Permission                    |
+|-----------------------|-------------------------------|
+| List documents        | Any authenticated user        |
+| Upload file           | Any authenticated user        |
+| Add text note         | Any authenticated user        |
+| Delete document       | Admin or uploader (TBD)       |
+| RAG query             | Any authenticated user        |
+| Health / Diagnostics  | Authenticated (internal use)  |
 
 ---
 
@@ -36,27 +43,30 @@ Documents are globally visible unless future project scoping is introduced.
 
 ---
 
-## 1. List Documents
-
+## 1. List Documents  
 ### `GET /api/knowledge/documents`
 
-Returns a list of documents that have been indexed into the vector store.
+Returns a deduplicated, **type-aware** (notes, files) list of documents.
 
-#### Response
+Document titles include a prefix:
+
+- `[knowledgebase] Title` → physical file in `knowledgebase/`
+- `[notes] Title` → note created via `/add_text`
+
+#### Example
 
 ```json
 [
   {
-    "id": "Week4_RE_Notes:/absolute/path/to/Week4_RE_Notes.md",
-    "title": "Week4_RE_Notes",
-    "path": "/absolute/path/to/Week4_RE_Notes.md",
-    "content_preview": "First ~400 chars of one of the chunks..."
+    "id": "Week4_RE_Notes:/abs/path/Week4_RE_Notes.md",
+    "title": "[knowledgebase] Week4_RE_Notes",
+    "path": "/abs/path/Week4_RE_Notes.md",
+    "content_preview": "First 400 chars..."
   }
 ]
-```
+````
 
-The `id` is derived from the document title and path. `content_preview` is a
-short text preview for the UI.
+Documents are sorted by type (`file` → `note` → `virtual`).
 
 ---
 
@@ -64,39 +74,38 @@ short text preview for the UI.
 
 ### `POST /api/knowledge/upload_file`
 
-Uploads a supported file into the knowledgebase folder and indexes it.
+Uploads a file into the local `knowledgebase/` folder and performs **incremental indexing**:
 
-#### Request (multipart/form-data)
+* Extract text
+* Chunk with overlapping sentence-aware splitting
+* Compute file hash + chunk hashes
+* Reuse existing chunk IDs when unchanged
+* Only re-embed changed chunks
+* Delete removed chunks
 
-* `file`: The binary file to upload.
+Supports: **.md**, **.txt**, **.pdf**
 
-Allowed types:
-
-* `.md`
-* `.txt`
-* `.pdf`
-
-#### Response
+#### Example Response
 
 ```json
-{
-  "status": "ok",
-  "filename": "Windows_Internals_Notes.md"
-}
+{ "status": "ok", "filename": "Windows_Internals_Notes.md" }
 ```
-
-Internally, the file is saved under a local `knowledgebase/` directory, then
-chunked and embedded into the Chroma collection.
 
 ---
 
-## 3. Add Free-Text Document
+## 3. Add Text Note
 
 ### `POST /api/knowledge/add_text`
 
-Adds a virtual document directly from the request body (no file on disk).
+Creates a `.md` file under:
 
-#### Request Body
+```
+knowledgebase/notes/<slug>.md
+```
+
+Then runs the same **incremental indexer** as file uploads.
+
+#### Request
 
 ```json
 {
@@ -105,515 +114,169 @@ Adds a virtual document directly from the request body (no file on disk).
 }
 ```
 
-#### Response
+---
+
+## 4. Delete Document
+
+### `POST /api/knowledge/delete_document`
+
+Deletes:
+
+* Vectors from Chroma
+* Manifest entry
+* File if in `knowledgebase/`
+
+#### Request
 
 ```json
-{
-  "status": "ok"
-}
-```
-
-The text is split into chunks and stored in the vector store with metadata:
-
-```json
-{ "title": "Dynamic Unpacking Notes", "path": null }
+{ "title": "Week4_RE_Notes", "path": "/abs/path/Week4_RE_Notes.md" }
 ```
 
 ---
 
-## 4. RAG Query
+## 5. RAG Query
 
 ### `POST /api/knowledge/query`
 
-Queries the knowledgebase using semantic search and then calls the local LLM with
-a RAG-style prompt built from the top-k results.
+Semantic retrieval + multi-chunk RAG pipeline.
 
-#### Request Body
+#### Request
 
 ```json
-{
-  "query": "dynamic unpacking techniques",
-  "top_k": 4
-}
+{ "query": "dynamic unpacking techniques", "top_k": 4 }
 ```
-
-* `query`: User question or search phrase.
-* `top_k` (optional): Number of chunks to retrieve (default = 4).
 
 #### Response
 
 ```json
 {
-  "answer": "Dynamic unpacking techniques typically involve...",
+  "answer": "...",
   "sources": [
     {
-      "document_id": "Week4_RE_Notes:/absolute/path/to/Week4_RE_Notes.md",
+      "document_id": "Week4_RE_Notes:/path/file.md",
       "title": "Week4_RE_Notes",
-      "snippet": "Dynamic unpacking involves...",
+      "snippet": "Multi-chunk stitched context window…",
       "score": 0.82
     }
   ]
 }
 ```
 
-`answer` is generated by the local LLM using only the provided context. `sources`
-lists the chunks that were used to build that context.
+**Important updates (Slice 2–3):**
+
+* Retrieval uses **multi-chunk context windows (±1 neighbor)**
+* Results re-ranked so `file` docs > `notes` when relevance ties
+* Snippets are longer and higher quality
 
 ---
 
-## 5. Delete Document
+## 6. Knowledge Health
 
-### `POST /api/knowledge/delete_document`
+### `GET /api/knowledge/health`
 
-Deletes a knowledge document and its associated vectors. If the document is
-backed by a file under the knowledgebase directory, that file is also removed.
+Returns operational status of the Knowledge/RAG subsystem.
 
-#### Request Body
+Includes:
 
-```json
-{
-  "title": "Week4_RE_Notes",
-  "path": "/absolute/path/to/Week4_RE_Notes.md"
-}
-```
+* `knowledge_dir_exists`
+* `chroma_dir_exists`
+* `manifest_exists`
+* file count
+* manifest document count
+* vector count
+* notes/messages
 
-* If `path` is omitted, all chunks with the given `title` are removed from
-  the vector store.
-* If `path` is present and points to a file in the knowledgebase folder, the
-  file is deleted from disk as well.
-
-#### Response
+#### Example
 
 ```json
 {
-  "status": "ok"
+  "status": "ok",
+  "knowledge_dir_exists": true,
+  "chroma_dir_exists": true,
+  "manifest_exists": true,
+  "documents_in_manifest": 12,
+  "files_in_knowledge_dir": 14,
+  "vector_count": 430,
+  "notes": []
 }
 ```
 
 ---
 
-# 🧠 RAG Workflow
+## 7. Reindex Knowledgebase
 
-Internally, RAG search for `/api/knowledge/query` uses:
+### `POST /api/knowledge/reindex`
 
-* `app.services.knowledge.query_knowledge(...)` → semantic search via Chroma
-* `app.core.llm_client.llm_chat(...)` → local LLM wrapper
+Runs **incremental reindex** across all files.
+
+Always safe — unchanged chunks are skipped.
+
+Returns the same payload as `/health`.
+
+---
+
+## 8. Debug Single Document
+
+### `GET /api/knowledge/debug_document?path=...`
+
+Deep inspection of one document:
+
+* exists on disk?
+* extractable text?
+* manifest entry?
+* chunk count?
+* vector count?
+* sample snippet
+* mismatch patterns (e.g., “manifest entry exists but file missing”)
+
+---
+
+## 9. Diagnostics
+
+### `GET /api/knowledge/diagnostics?limit_files=500`
+
+Runs a KB-wide diagnostic scan.
+
+Identifies issues such as:
+
+* no extractable text
+* missing manifest entry
+* no vectors
+* orphaned manifest entries
+
+#### Example Issue
+
+```json
+{
+  "status": "no_vectors",
+  "path": "/abs/path/file.md",
+  "title": "file",
+  "details": ["No vectors found in Chroma for this file."]
+}
+```
+
+---
+
+# 🧠 RAG Workflow Summary
 
 Pipeline:
 
-1. Embed the query text (Chroma uses its configured embedding function).
-2. Query the `devcell_knowledge` collection.
-3. Build a context block from the top-k chunks.
-4. Construct a RAG prompt with strict “use only this context” instructions.
-5. Call the LLM and return answer + source chunks.
+1. Query embedding
+2. Chroma retrieval
+3. Multi-chunk stitching
+4. Path-aware ranking
+5. RAG prompt (LLM constrained to provided context)
+6. Answer + sources
 
 ---
 
-# ⚠️ Error Responses
+# 📚 Related Docs
 
-| Code | Meaning                               |
-| ---- | ------------------------------------- |
-| 400  | Validation error (e.g., bad title)    |
-| 401  | Unauthenticated                       |
-| 415  | Unsupported media type (upload)       |
-| 500  | Internal failure (I/O, indexing, LLM) |
+* `modules/06_knowledge.md`
+* `developer/04_rag_pipeline.md`
+* ADR-010 KB Model
+* Health API
 
----
-
-# 📚 Related Documents
-
-* Knowledgebase Module → `../modules/06_knowledge.md`
-* LLM Integration → `../architecture/llm_integration.md`
-* ADR-010: KB as Markdown Files + Vector Store → `../adr/ADR-010-kb-files-vector-store.md`
-
-````
-
----
-
-### 3.2 `docs/modules/06_knowledge.md`
-
-**What this change does**
-
-- Updates the architecture to match the current implementation:
-  - No DB table; metadata is stored directly in Chroma.
-  - Files live in a `knowledgebase/` folder.
-  - Vector store lives in `chroma_store/`.
-  - Backend logic is under `app/services/knowledge/*`.
-
-**New file:**
-
-```md
-# Knowledgebase Module
-
-The Knowledgebase (KB) module provides DevCell’s document storage, embedding,
-semantic search, and Retrieval-Augmented Generation (RAG) capabilities. It is
-designed for environments that require local-first knowledge storage and
-offline access.
-
-This document describes the KB architecture: data model, pipelines,
-service logic, embedding workflow, RAG search, frontend UI, and planned future
-extensions.
-
----
-
-# 🎯 Purpose
-
-The Knowledgebase enables teams to:
-
-- store technical documents locally
-- embed documents into a vector database (Chroma)
-- perform semantic search across stored knowledge
-- enrich chat/SITREP queries with contextual retrieval
-- support training pipelines and documentation workflows
-
-The KB module is fully local — no cloud APIs are required.
-
----
-
-# 🧱 Data Model
-
-The KB uses **filesystem + vector store metadata**, not a relational table.
-
-### 1. Filesystem
-
-Raw documents are stored under a dedicated folder:
-
-```text
-knowledgebase/
-````
-
-Files are typically uploaded via `/api/knowledge/upload_file` or managed
-manually (e.g., checked into the repo for shared docs).
-
-Supported formats:
-
-* `.md`
-* `.txt`
-* `.pdf`
-
-### 2. Chroma Vector Index
-
-Embeddings are stored in a persistent Chroma collection:
-
-* Chroma directory: `chroma_store/`
-* Collection name: `devcell_knowledge`
-
-Each stored chunk has:
-
-```json
-{
-  "id": "doc-name-0",
-  "document": "chunk text...",
-  "metadata": {
-    "title": "doc-name",
-    "path": "/absolute/path/to/docname.md"  // or null for free-text notes
-  }
-}
 ```
-
-The API exposes a higher-level `KnowledgeDocument` model:
-
-```json
-{
-  "id": "title:/path/to/file.md",
-  "title": "title",
-  "path": "/path/to/file.md",
-  "content_preview": "First ~400 chars of a chunk..."
-}
+© DevCell Platform Documentation
 ```
-
----
-
-# 🧩 Backend Architecture
-
-The KB module is implemented as a dedicated service package:
-
-```text
-backend/app/services/knowledge/
-  __init__.py
-  client.py
-  config.py
-  documents.py
-  embedder.py
-  indexer.py
-  query.py
-```
-
-High-level responsibilities:
-
-* `config.py` – defines `KNOWLEDGE_DIR` and `CHROMA_DIR`.
-* `client.py` – singleton Chroma client + collection (`devcell_knowledge`).
-* `documents.py` – virtual text docs, listing, and deletion.
-* `embedder.py` – embedding model loader (SentenceTransformers).
-* `indexer.py` – file extraction, chunking, and indexing.
-* `query.py` – semantic search returning structured chunks.
-
----
-
-## 📁 1. Document Management (`documents.py`)
-
-Responsibilities:
-
-* handle “virtual” text documents (`/add_text`)
-* return a deduplicated list of documents for the UI
-* delete documents by `(title, path)` and optionally remove files on disk
-
-On deletion:
-
-* a `where` filter is constructed for Chroma based on title and path;
-* matched vectors are deleted from the collection;
-* if `path` points to a file under `KNOWLEDGE_DIR`, the file is removed.
-
----
-
-## 🧠 2. Embedding Pipeline (`embedder.py`)
-
-Embeddings are generated with SentenceTransformers, using a single
-process-local model cache:
-
-* Env var: `KNOWLEDGE_EMBED_MODEL`
-* Default: `sentence-transformers/all-MiniLM-L6-v2`
-
-The model is loaded lazily via `lru_cache` to avoid repeated instantiation.
-
----
-
-## 🧱 3. Indexing Layer (`indexer.py`)
-
-Indexing stores each file as multiple chunks in Chroma:
-
-* Supported types: `.md`, `.txt`, `.pdf`
-* `_extract_text_from_file` handles PDF/text extraction
-* `_chunk_text(text, max_chars=800)` splits into paragraphs and sized chunks
-
-Each chunk is upserted into the `devcell_knowledge` collection with metadata:
-
-```json
-{
-  "title": "doc-name",
-  "path": "/absolute/path/to/doc-name.md"
-}
-```
-
-Indexing entry points:
-
-* `index_files_in_knowledgebase()` – scan entire `KNOWLEDGE_DIR` (used by a
-  startup hook or admin script).
-* `index_single_file(path)` – index a newly uploaded file.
-
----
-
-## 🔍 4. Semantic Search (`query.py`)
-
-Implements KB search:
-
-1. Accepts a query string and `top_k` limit.
-2. Uses Chroma’s `query` with `query_texts=[query]`.
-3. Retrieves top matching chunks and their metadata.
-4. Converts them into `KnowledgeSourceChunk` models:
-
-```json
-{
-  "document_id": "title:/path/to/file.md",
-  "title": "title",
-  "snippet": "First ~400 chars of the chunk",
-  "score": 0.123
-}
-```
-
-This is used directly in the RAG endpoint as `sources`.
-
----
-
-## 🤖 5. RAG Pipeline
-
-The unified RAG pipeline is exposed via:
-
-* `app.api.routes.knowledge.query_knowledge_endpoint`
-* `app.services.rag.query_knowledge` (compatibility wrapper)
-
-Pipeline:
-
-1. Call `app.services.knowledge.query_knowledge(query, top_k)` to get
-   `KnowledgeSourceChunk` results.
-2. Build a context block from the top-k chunks.
-3. Construct a RAG-style prompt:
-
-```text
-SYSTEM: You are a domain-aware assistant...
-Context:
-[Source 1 - TitleA]
-snippetA...
-
-[Source 2 - TitleB]
-snippetB...
-
-Question:
-{user query}
-```
-
-4. Call `app.core.llm_client.llm_chat(messages)` to the local LLM.
-5. If the call fails or returns empty, fall back to stitched snippets.
-
----
-
-# 🔌 Routes & Services
-
-### Routes: `backend/app/api/routes/knowledge.py`
-
-| Method | Endpoint                         | Description                       |
-| ------ | -------------------------------- | --------------------------------- |
-| GET    | `/api/knowledge/documents`       | List stored documents             |
-| POST   | `/api/knowledge/add_text`        | Add a free-text document          |
-| POST   | `/api/knowledge/upload_file`     | Upload & index a file             |
-| POST   | `/api/knowledge/query`           | RAG query (semantic search + LLM) |
-| POST   | `/api/knowledge/delete_document` | Delete doc + vectors (+file)      |
-
-### Services: `app.services.knowledge.*`
-
-These implement:
-
-* upload and indexing workflow
-* embedding pipeline
-* deletion workflow (vectors + optional file removal)
-* semantic search used by RAG endpoints
-
----
-
-# 🖥️ Frontend Architecture
-
-Frontend KB logic currently lives in:
-
-```text
-src/pages/KnowledgePage.tsx
-```
-
-`KnowledgePage` provides:
-
-* **Ask panel**: RAG query UI calling `POST /api/knowledge/query`.
-* **Add free-text panel**: calls `POST /api/knowledge/add_text`.
-* **Upload panel**: calls `POST /api/knowledge/upload_file`.
-* **Document list**: calls `GET /api/knowledge/documents` and deletes via
-  `POST /api/knowledge/delete_document`.
-
-Future enhancement paths:
-
-* Extract reusable components:
-
-  * `KnowledgeUpload`
-  * `KnowledgeList`
-  * `KnowledgeSearch`
-* Add a dedicated `src/lib/knowledge.ts` API client.
-
----
-
-# 🔄 Document Lifecycle
-
-```mermaid
-flowchart TD
-    U[User Upload or Add Text] --> S[Save (file or text)]
-    S --> E[Embedding + Chunking]
-    E --> I[Chroma Indexing]
-    I --> DONE[Available for Search & RAG]
-
-    UDEL[User Deletes Doc] --> RMVEC[Remove Vectors (Chroma)]
-    RMVEC --> RMFILE[Remove File (if under KNOWLEDGE_DIR)]
-```
-
----
-
-# 🔍 Search Workflow
-
-1. User enters a question on the Knowledge page.
-2. `/api/knowledge/query` calls `query_knowledge(...)`.
-3. Chroma finds the most similar chunks.
-4. A RAG prompt is constructed and sent to the local LLM.
-5. Response returns:
-
-   * `answer` – RAG-generated text
-   * `sources` – list of `KnowledgeSourceChunk` entries
-
----
-
-# 🔐 Permissions
-
-Current system: **global KB access**.
-
-| Action          | Allowed                        |
-| --------------- | ------------------------------ |
-| Upload document | Any user                       |
-| Add text note   | Any user                       |
-| Delete document | Admin or uploader (policy TBD) |
-| Search / RAG    | Any user                       |
-
-Future roadmap includes project-scoped KB areas and stronger per-doc controls.
-
----
-
-# 📊 Integration With Other Modules
-
-### Dashboard
-
-SITREP and dashboard features can call:
-
-* `app.services.rag.query_knowledge(...)`
-* or directly `POST /api/knowledge/query`
-
-to enrich context for status reports.
-
-### Chat
-
-Chat module can optionally use KB context by:
-
-* calling `app.services.rag.query_knowledge(...)` internally, or
-* calling `/api/knowledge/query` from the frontend and merging into prompts.
-
-### Training
-
-Training roadmaps can store reference materials in the KB and use semantic
-search to surface relevant docs during task generation.
-
----
-
-# 🔮 Future Enhancements
-
-Based on roadmap and ADRs:
-
-1. **Project-scoped Knowledgebase**
-
-   * Associate docs with projects.
-   * Filter visibility and search results by project membership.
-
-2. **Inline Document Viewer**
-
-   * Inline preview for markdown, plaintext, and PDF.
-   * Collapsible “view full document” in the UI.
-
-3. **Full document versioning**
-
-   * Track versions and change history.
-   * Support re-embedding deltas on change.
-
-4. **Auto-embedding watch folder**
-
-   * Files dropped into `knowledgebase/` are automatically indexed on startup.
-
-5. **KB Agents**
-
-   * Summarize documents, classify content, add tags.
-   * Auto-generate training tasks from stored documentation.
-
----
-
-# 📚 Related Documents
-
-* LLM Integration → `architecture/llm_integration.md`
-* Permissions → `permissions.md`
-* API Reference → `../api/07_knowledge_api.md`
-* ADR-010: KB as Markdown Files + Vector Store → `../adr/ADR-010-kb-files-vector-store.md`
-
----
-
-© DevCell Platform Documentation — DevCell OSS style
-
-````
