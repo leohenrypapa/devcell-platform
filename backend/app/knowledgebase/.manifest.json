@@ -1,5 +1,17 @@
 {
   "documents": {
+    "/home/llm/devcell-platform/backend/app/knowledgebase/notes/checklist-preparing-a-devcell-demo-for-leadership-1765417026.md": {
+      "chunks": [
+        {
+          "chunk_hash": "dddf54a4a614803738812815f80cd8821d37204e",
+          "chunk_id": "45b30fe1bae42f18a681a1231d51a62750ccb058",
+          "index": 0
+        }
+      ],
+      "file_hash": "f486b995f39f88772ea386c030a2742b3ff01296",
+      "mtime": 1765417026.0944102,
+      "title": "checklist-preparing-a-devcell-demo-for-leadership-1765417026"
+    },
     "/home/llm/devcell-platform/backend/app/knowledgebase/notes/devcell-platform-quick-overview-1765396691.md": {
       "chunks": [
         {
@@ -11,6 +23,78 @@
       "file_hash": "f495be0e9857bf8336611caf87e85094957d8368",
       "mtime": 1765396691.7515068,
       "title": "devcell-platform-quick-overview-1765396691"
+    },
+    "/home/llm/devcell-platform/backend/app/knowledgebase/notes/devcell-platform-quick-overview-1765416153.md": {
+      "chunks": [
+        {
+          "chunk_hash": "b2f1921ea7f835f0301164ec8136e6d5c2507e06",
+          "chunk_id": "d893f90afedfa3d992c12d5da46b98d0c50e58bd",
+          "index": 0
+        }
+      ],
+      "file_hash": "a4245b538fc6fd444502058d0feee026b7ededcb",
+      "mtime": 1765416153.3499117,
+      "title": "devcell-platform-quick-overview-1765416153"
+    },
+    "/home/llm/devcell-platform/backend/app/knowledgebase/notes/devcell-platform-quick-overview-1765416594.md": {
+      "chunks": [
+        {
+          "chunk_hash": "b2f1921ea7f835f0301164ec8136e6d5c2507e06",
+          "chunk_id": "2e3d7eef69ff0d34623a09ae4baa8c914e31e76f",
+          "index": 0
+        }
+      ],
+      "file_hash": "a4245b538fc6fd444502058d0feee026b7ededcb",
+      "mtime": 1765416594.9581325,
+      "title": "devcell-platform-quick-overview-1765416594"
+    },
+    "/home/llm/devcell-platform/backend/app/knowledgebase/notes/devcell-platform-quick-overview-1765416732.md": {
+      "chunks": [
+        {
+          "chunk_hash": "b2f1921ea7f835f0301164ec8136e6d5c2507e06",
+          "chunk_id": "a838a6ac75981c39c75c4324ea94d369d5190778",
+          "index": 0
+        }
+      ],
+      "file_hash": "a4245b538fc6fd444502058d0feee026b7ededcb",
+      "mtime": 1765416732.114267,
+      "title": "devcell-platform-quick-overview-1765416732"
+    },
+    "/home/llm/devcell-platform/backend/app/knowledgebase/notes/devcell-platform-quick-overview-1765417026.md": {
+      "chunks": [
+        {
+          "chunk_hash": "b2f1921ea7f835f0301164ec8136e6d5c2507e06",
+          "chunk_id": "ab72ddc7b492c7df1280e3433fc06decbeb25fff",
+          "index": 0
+        }
+      ],
+      "file_hash": "a4245b538fc6fd444502058d0feee026b7ededcb",
+      "mtime": 1765417026.904405,
+      "title": "devcell-platform-quick-overview-1765417026"
+    },
+    "/home/llm/devcell-platform/backend/app/knowledgebase/notes/devcell-project-roles-owner-member-viewer-1765417025.md": {
+      "chunks": [
+        {
+          "chunk_hash": "890ade105a75a6f3d0bd8f7638e5ed6484bc95c6",
+          "chunk_id": "626f699f63af1dabf6d0cbf165fd7f70f64e415b",
+          "index": 0
+        }
+      ],
+      "file_hash": "c72197fe188914b15eb9a0a4e6ec3f1b846881b7",
+      "mtime": 1765417025.8034122,
+      "title": "devcell-project-roles-owner-member-viewer-1765417025"
+    },
+    "/home/llm/devcell-platform/backend/app/knowledgebase/notes/faq-multi-agent-sdlc-demo-1765417026.md": {
+      "chunks": [
+        {
+          "chunk_hash": "c32787afbd9cceab2e568214b59350db3493a679",
+          "chunk_id": "70f40f74bb82f15794324223862e43c7f0541510",
+          "index": 0
+        }
+      ],
+      "file_hash": "a1045f0a022bf7acd9aebc6ee7174c31e239df6f",
+      "mtime": 1765417026.7554061,
+      "title": "faq-multi-agent-sdlc-demo-1765417026"
     },
     "/home/llm/devcell-platform/backend/app/knowledgebase/notes/guide-daily-standups-and-ai-summaries-1765396706.md": {
       "chunks": [
@@ -24,6 +108,54 @@
       "mtime": 1765396706.6113975,
       "title": "guide-daily-standups-and-ai-summaries-1765396706"
     },
+    "/home/llm/devcell-platform/backend/app/knowledgebase/notes/guide-daily-standups-and-ai-summaries-1765416153.md": {
+      "chunks": [
+        {
+          "chunk_hash": "06deab0ce1fa521364f6895fda3915922e5a5fcc",
+          "chunk_id": "4e82dd89cf599f0d083ecadfebba3fa5f2e0e041",
+          "index": 0
+        }
+      ],
+      "file_hash": "a43bfbd1bdf7ba1b76c8d81e6edc7f44b53008fc",
+      "mtime": 1765416153.5419106,
+      "title": "guide-daily-standups-and-ai-summaries-1765416153"
+    },
+    "/home/llm/devcell-platform/backend/app/knowledgebase/notes/guide-daily-standups-and-ai-summaries-1765416595.md": {
+      "chunks": [
+        {
+          "chunk_hash": "06deab0ce1fa521364f6895fda3915922e5a5fcc",
+          "chunk_id": "3b087d9378df1adde81c8df0ece5141cdaa05e06",
+          "index": 0
+        }
+      ],
+      "file_hash": "a43bfbd1bdf7ba1b76c8d81e6edc7f44b53008fc",
+      "mtime": 1765416595.2571306,
+      "title": "guide-daily-standups-and-ai-summaries-1765416595"
+    },
+    "/home/llm/devcell-platform/backend/app/knowledgebase/notes/guide-daily-standups-and-ai-summaries-1765416732.md": {
+      "chunks": [
+        {
+          "chunk_hash": "06deab0ce1fa521364f6895fda3915922e5a5fcc",
+          "chunk_id": "4bdf723b378b8d254e8f968756aa23304699c5bc",
+          "index": 0
+        }
+      ],
+      "file_hash": "a43bfbd1bdf7ba1b76c8d81e6edc7f44b53008fc",
+      "mtime": 1765416732.3882654,
+      "title": "guide-daily-standups-and-ai-summaries-1765416732"
+    },
+    "/home/llm/devcell-platform/backend/app/knowledgebase/notes/guide-daily-standups-and-ai-summaries-1765417027.md": {
+      "chunks": [
+        {
+          "chunk_hash": "06deab0ce1fa521364f6895fda3915922e5a5fcc",
+          "chunk_id": "ddc3de11bc7211a92e1a5a8cba2cf39d3e820775",
+          "index": 0
+        }
+      ],
+      "file_hash": "a43bfbd1bdf7ba1b76c8d81e6edc7f44b53008fc",
+      "mtime": 1765417027.0444043,
+      "title": "guide-daily-standups-and-ai-summaries-1765417027"
+    },
     "/home/llm/devcell-platform/backend/app/knowledgebase/notes/guide-getting-good-answers-from-rag-1765396739.md": {
       "chunks": [
         {
@@ -36,6 +168,18 @@
       "mtime": 1765396739.092158,
       "title": "guide-getting-good-answers-from-rag-1765396739"
     },
+    "/home/llm/devcell-platform/backend/app/knowledgebase/notes/guide-using-devcell-for-training-tracks-1765417026.md": {
+      "chunks": [
+        {
+          "chunk_hash": "246c694348da427af050e4cdde3887974cf88f72",
+          "chunk_id": "07d68d0aecfe0e6f6737ff8d3a19f211bc437cc0",
+          "index": 0
+        }
+      ],
+      "file_hash": "c026026e1acdbd69390fbeed174ae4815dae8622",
+      "mtime": 1765417026.5434074,
+      "title": "guide-using-devcell-for-training-tracks-1765417026"
+    },
     "/home/llm/devcell-platform/backend/app/knowledgebase/notes/guide-writing-good-knowledge-base-notes-1765396713.md": {
       "chunks": [
         {
@@ -47,6 +191,54 @@
       "file_hash": "a1c95172351c984c8f078e9e13da2e5697b23a62",
       "mtime": 1765396713.8993437,
       "title": "guide-writing-good-knowledge-base-notes-1765396713"
+    },
+    "/home/llm/devcell-platform/backend/app/knowledgebase/notes/guide-writing-good-knowledge-base-notes-1765416153.md": {
+      "chunks": [
+        {
+          "chunk_hash": "5d8277408e02151a0f1857c4c331519bbc1b6714",
+          "chunk_id": "c544a8d3cb14e203bd8a5168b8db72dd4105209d",
+          "index": 0
+        }
+      ],
+      "file_hash": "032d9caee6c3c53d70c28f8ba8197b3ab33408f5",
+      "mtime": 1765416153.7279093,
+      "title": "guide-writing-good-knowledge-base-notes-1765416153"
+    },
+    "/home/llm/devcell-platform/backend/app/knowledgebase/notes/guide-writing-good-knowledge-base-notes-1765416595.md": {
+      "chunks": [
+        {
+          "chunk_hash": "5d8277408e02151a0f1857c4c331519bbc1b6714",
+          "chunk_id": "f01c0369545a8eccc09351b59041e752a47d9717",
+          "index": 0
+        }
+      ],
+      "file_hash": "032d9caee6c3c53d70c28f8ba8197b3ab33408f5",
+      "mtime": 1765416595.482129,
+      "title": "guide-writing-good-knowledge-base-notes-1765416595"
+    },
+    "/home/llm/devcell-platform/backend/app/knowledgebase/notes/guide-writing-good-knowledge-base-notes-1765416732.md": {
+      "chunks": [
+        {
+          "chunk_hash": "5d8277408e02151a0f1857c4c331519bbc1b6714",
+          "chunk_id": "766482f64203296ea4cad55cd389c98af579e96a",
+          "index": 0
+        }
+      ],
+      "file_hash": "032d9caee6c3c53d70c28f8ba8197b3ab33408f5",
+      "mtime": 1765416732.6062639,
+      "title": "guide-writing-good-knowledge-base-notes-1765416732"
+    },
+    "/home/llm/devcell-platform/backend/app/knowledgebase/notes/guide-writing-good-knowledge-base-notes-1765417027.md": {
+      "chunks": [
+        {
+          "chunk_hash": "5d8277408e02151a0f1857c4c331519bbc1b6714",
+          "chunk_id": "5fa1608d099e6249d2cc2633eb25ed6247402a5c",
+          "index": 0
+        }
+      ],
+      "file_hash": "032d9caee6c3c53d70c28f8ba8197b3ab33408f5",
+      "mtime": 1765417027.1864033,
+      "title": "guide-writing-good-knowledge-base-notes-1765417027"
     },
     "/home/llm/devcell-platform/backend/app/knowledgebase/notes/qwerasdf-1765385058.md": {
       "chunks": [
@@ -72,6 +264,54 @@
       "mtime": 1765396731.0762172,
       "title": "sop-malware-lab-safety-and-scope-1765396731"
     },
+    "/home/llm/devcell-platform/backend/app/knowledgebase/notes/sop-malware-lab-safety-and-scope-1765416153.md": {
+      "chunks": [
+        {
+          "chunk_hash": "57805ccf84ffccb06a3d3e04307d65a1f7d2e1ae",
+          "chunk_id": "317283b9c3aa395ad937057ee6be1cd2cb4bd254",
+          "index": 0
+        }
+      ],
+      "file_hash": "b89aec070c8f082d61ed30e4021b0adc5f7df0d6",
+      "mtime": 1765416153.948908,
+      "title": "sop-malware-lab-safety-and-scope-1765416153"
+    },
+    "/home/llm/devcell-platform/backend/app/knowledgebase/notes/sop-malware-lab-safety-and-scope-1765416595.md": {
+      "chunks": [
+        {
+          "chunk_hash": "57805ccf84ffccb06a3d3e04307d65a1f7d2e1ae",
+          "chunk_id": "7b811c067ae1d517c5eeaf3cbf67775a14f4c666",
+          "index": 0
+        }
+      ],
+      "file_hash": "b89aec070c8f082d61ed30e4021b0adc5f7df0d6",
+      "mtime": 1765416595.6871278,
+      "title": "sop-malware-lab-safety-and-scope-1765416595"
+    },
+    "/home/llm/devcell-platform/backend/app/knowledgebase/notes/sop-malware-lab-safety-and-scope-1765416732.md": {
+      "chunks": [
+        {
+          "chunk_hash": "57805ccf84ffccb06a3d3e04307d65a1f7d2e1ae",
+          "chunk_id": "a67711ad9fa2fc974f7a8a779a6bf19747e21a90",
+          "index": 0
+        }
+      ],
+      "file_hash": "b89aec070c8f082d61ed30e4021b0adc5f7df0d6",
+      "mtime": 1765416732.8272626,
+      "title": "sop-malware-lab-safety-and-scope-1765416732"
+    },
+    "/home/llm/devcell-platform/backend/app/knowledgebase/notes/sop-malware-lab-safety-and-scope-1765417027.md": {
+      "chunks": [
+        {
+          "chunk_hash": "57805ccf84ffccb06a3d3e04307d65a1f7d2e1ae",
+          "chunk_id": "2aed539c9c036dd2cbe4f0c7367cf8948175e885",
+          "index": 0
+        }
+      ],
+      "file_hash": "b89aec070c8f082d61ed30e4021b0adc5f7df0d6",
+      "mtime": 1765417027.3364024,
+      "title": "sop-malware-lab-safety-and-scope-1765417027"
+    },
     "/home/llm/devcell-platform/backend/app/knowledgebase/notes/sop-tasks-and-projects-workflow-1765396698.md": {
       "chunks": [
         {
@@ -96,6 +336,18 @@
       "mtime": 1765396747.227098,
       "title": "template-incident-exercise-summary-1765396747"
     },
+    "/home/llm/devcell-platform/backend/app/knowledgebase/notes/template-weekly-devcell-sitrep-1765417026.md": {
+      "chunks": [
+        {
+          "chunk_hash": "183c9766cc9f9b19e9079784fe8a5db0ee3df789",
+          "chunk_id": "943580aa19203b56d614ce78d37cb9069190db36",
+          "index": 0
+        }
+      ],
+      "file_hash": "b1829eb27b4b6975a7b93c86d67b37145570f4c5",
+      "mtime": 1765417026.3304088,
+      "title": "template-weekly-devcell-sitrep-1765417026"
+    },
     "/home/llm/devcell-platform/backend/app/knowledgebase/notes/training-pipeline-phase-1-4-overview-1765396720.md": {
       "chunks": [
         {
@@ -107,6 +359,54 @@
       "file_hash": "ebf0bd7ee282e8b51930119c04d498302ad392bc",
       "mtime": 1765396720.794293,
       "title": "training-pipeline-phase-1-4-overview-1765396720"
+    },
+    "/home/llm/devcell-platform/backend/app/knowledgebase/notes/training-pipeline-phase-1-4-overview-1765416154.md": {
+      "chunks": [
+        {
+          "chunk_hash": "2e27a06b8fc0fce5a05e58043bb53b68e69b75fe",
+          "chunk_id": "5e336829c523f43c0a1702cbfe6d881ae82d53c1",
+          "index": 0
+        }
+      ],
+      "file_hash": "1a9c95ab110f6060c1357f1b2a9d9d04927ba4f6",
+      "mtime": 1765416154.1629066,
+      "title": "training-pipeline-phase-1-4-overview-1765416154"
+    },
+    "/home/llm/devcell-platform/backend/app/knowledgebase/notes/training-pipeline-phase-1-4-overview-1765416595.md": {
+      "chunks": [
+        {
+          "chunk_hash": "2e27a06b8fc0fce5a05e58043bb53b68e69b75fe",
+          "chunk_id": "2a0ec2567a49b2d150c53a1c253e34ca632a6620",
+          "index": 0
+        }
+      ],
+      "file_hash": "1a9c95ab110f6060c1357f1b2a9d9d04927ba4f6",
+      "mtime": 1765416595.8981266,
+      "title": "training-pipeline-phase-1-4-overview-1765416595"
+    },
+    "/home/llm/devcell-platform/backend/app/knowledgebase/notes/training-pipeline-phase-1-4-overview-1765416733.md": {
+      "chunks": [
+        {
+          "chunk_hash": "2e27a06b8fc0fce5a05e58043bb53b68e69b75fe",
+          "chunk_id": "11ed229258ee502bfa71550d61f210c8ab3558ad",
+          "index": 0
+        }
+      ],
+      "file_hash": "1a9c95ab110f6060c1357f1b2a9d9d04927ba4f6",
+      "mtime": 1765416733.0382612,
+      "title": "training-pipeline-phase-1-4-overview-1765416733"
+    },
+    "/home/llm/devcell-platform/backend/app/knowledgebase/notes/training-pipeline-phase-1-4-overview-1765417027.md": {
+      "chunks": [
+        {
+          "chunk_hash": "2e27a06b8fc0fce5a05e58043bb53b68e69b75fe",
+          "chunk_id": "34ffefdb318b15670400e288ea7fefcce09250d2",
+          "index": 0
+        }
+      ],
+      "file_hash": "1a9c95ab110f6060c1357f1b2a9d9d04927ba4f6",
+      "mtime": 1765417027.4904015,
+      "title": "training-pipeline-phase-1-4-overview-1765417027"
     }
   },
   "version": 1

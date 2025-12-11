@@ -298,7 +298,7 @@ Your backend uses **session tokens**, not JWT — updated to match current imple
 ```bash
 cd frontend
 npm install
-npm run dev
+npm run dev -- --host
 ```
 
 `frontend/.env`:
