@@ -25,6 +25,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/knowledge", label: "Knowledge Base" },
   { to: "/training", label: "Training" },
   { to: "/review", label: "Code Review" },
+  { to: "/multi-agent-sdlc", label: "Multi-Agent SDLC" },
   { to: "/admin", label: "Admin", adminOnly: true },
 ];
 

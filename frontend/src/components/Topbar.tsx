@@ -55,13 +55,17 @@ const TopbarTitle: React.FC = () => {
 
 const TopbarUserSection: React.FC = () => {
   const navigate = useNavigate();
-  const { user, isAuthenticated, logout } = useUser();
+
+  // FIX: Use token instead of isAuthenticated (which does not exist)
+  const { user, token, logout } = useUser();
+  const isAuthenticated = Boolean(token);
 
   const handleLogout = () => {
     logout();
     navigate("/login");
   };
 
+  // When NOT logged in
   if (!isAuthenticated) {
     return (
       <button
@@ -81,7 +85,10 @@ const TopbarUserSection: React.FC = () => {
     );
   }
 
-  const displayName = (user as any)?.display_name ?? user?.username ?? "User";
+  // When logged in
+  const displayName =
+    (user as any)?.display_name ?? user?.username ?? "User";
+
   const initials = displayName
     .split(" ")
     .map((p: string) => p[0])

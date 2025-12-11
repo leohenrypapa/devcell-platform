@@ -1,5 +1,6 @@
 # backend/app/api/routes/__init__.py
 
+from . import agents  # noqa: F401
 from . import auth  # noqa: F401
 from . import chat  # noqa: F401
 from . import dashboard  # noqa: F401

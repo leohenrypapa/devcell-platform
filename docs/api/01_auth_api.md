@@ -333,6 +333,57 @@ Returns the created `UserPublic`.
 
 ---
 
+## 10. Logout All Sessions
+
+### `POST /api/auth/logout_all`
+
+Logout from **all devices/browsers** by deleting all sessions for the current user.
+
+#### Headers
+
+```http
+Authorization: Bearer <token>
+````
+
+#### Response
+
+```json
+{
+  "detail": "Logged out from all devices"
+}
+```
+
+---
+
+## 11. List Own Sessions
+
+### `GET /api/auth/sessions/me`
+
+List the current user's sessions without exposing token values.
+
+#### Headers
+
+```http
+Authorization: Bearer <token>
+```
+
+#### Response
+
+```json
+{
+  "items": [
+    {
+      "id": 1,
+      "created_at": "2025-12-01T10:00:00+00:00",
+      "age_hours": 0.5,
+      "expires_in_hours": 7.5,
+      "is_expired": false
+    }
+  ]
+}
+
+---
+
 # 🔐 Role & Permission Summary
 
 * **Roles**: `"user"`, `"admin"`.

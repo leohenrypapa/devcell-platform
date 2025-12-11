@@ -1,9 +1,9 @@
 // frontend/src/features/chat/useChat.ts
 import { useRef, useState } from "react";
 import { useUser } from "../../context/UserContext";
+import { BACKEND_BASE } from "../../lib/backend";
 
-const backendBase =
-  (import.meta as any).env.VITE_BACKEND_BASE_URL || "http://localhost:9000";
+const backendBase = BACKEND_BASE;
 
 export type ChatSource = {
   document_id: string;

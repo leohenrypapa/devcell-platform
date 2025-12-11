@@ -1,7 +1,6 @@
 // frontend/src/router/ProtectedRoute.tsx
 import React from "react";
-import { Navigate, useLocation } from "react-router-dom";
-
+import { Navigate } from "react-router-dom";
 import { useUser } from "../context/UserContext";
 
 type ProtectedRouteProps = {
@@ -13,24 +12,47 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   element,
   requireAdmin = false,
 }) => {
-  const { isAuthenticated, user } = useUser();
-  const location = useLocation();
+  const { user, token, loading } = useUser();
 
-  if (!isAuthenticated) {
+  // Still checking /auth/me or restoring session
+  if (loading) {
     return (
-      <Navigate
-        to="/login"
-        replace
-        state={{ from: location.pathname || "/" }}
-      />
+      <div
+        style={{
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: "var(--dc-font-size-sm)",
+          color: "var(--dc-text-muted)",
+        }}
+      >
+        Checking your DevCell access...
+      </div>
     );
   }
 
-  if (requireAdmin && user && (user as any).role !== "admin") {
-    // Non-admins get bounced to dashboard
-    return <Navigate to="/" replace />;
+  // Not logged in at all: no token in context/localStorage
+  if (!token) {
+    return <Navigate to="/login" replace />;
   }
 
+  // If route requires admin, check minimal flags on user if available.
+  // We don't block if we can't determine; we just err on the side of allowing.
+  if (requireAdmin) {
+    const anyUser: any = user || {};
+    const isAdmin =
+      anyUser.is_admin === true ||
+      anyUser.admin === true ||
+      anyUser.role === "admin";
+
+    if (!isAdmin) {
+      // Not admin: send to home (you can change this to /profile if you prefer)
+      return <Navigate to="/" replace />;
+    }
+  }
+
+  // Authenticated (and admin if required): render wrapped element
   return element;
 };
 

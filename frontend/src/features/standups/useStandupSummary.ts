@@ -2,14 +2,14 @@
 import { useState } from "react";
 
 import { useToast } from "../../context/ToastContext";
+import { BACKEND_BASE } from "../../lib/backend";
 
 export type StandupSummaryResponse = {
   summary: string;
   count: number;
 };
 
-const backendBase =
-  (import.meta as any).env.VITE_BACKEND_BASE_URL || "http://localhost:9000";
+const backendBase = BACKEND_BASE;
 
 export type UseStandupSummaryResult = {
   summary: string;

@@ -2,7 +2,7 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useUser } from "../context/UserContext";
-import { BACKEND_BASE } from "../lib/backend";
+import { api, BACKEND_BASE } from "../lib/backend";
 import Card from "../ui/Card";
 import Button from "../ui/Button";
 import PageHeader from "../ui/PageHeader";
@@ -45,7 +45,7 @@ const RegisterPage: React.FC = () => {
 
     setLoading(true);
     try {
-      const res = await fetch(`${BACKEND_BASE}/api/auth/register`, {
+      const res = await api("/api/auth/register", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -63,7 +63,10 @@ const RegisterPage: React.FC = () => {
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.detail || "Registration failed.");
+        // Prefer backend-provided detail if present
+        throw new Error(
+          data.detail || data.message || "Registration failed. Please try again.",
+        );
       }
 
       const data = await res.json();
@@ -71,9 +74,11 @@ const RegisterPage: React.FC = () => {
       if (data.user && data.access_token) {
         setUserAndToken(data.user, data.access_token);
       }
+
       navigate("/");
     } catch (err: any) {
-      setError(err.message || "Registration failed.");
+      console.error("[DevCell] Registration failed", err);
+      setError(err.message || "Registration failed. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -505,6 +510,20 @@ const RegisterPage: React.FC = () => {
               </p>
             </div>
           </form>
+
+          {/* Optional small debug hint in dev mode */}
+          {import.meta.env.DEV && (
+            <p
+              style={{
+                marginTop: "1rem",
+                marginBottom: 0,
+                fontSize: "var(--dc-font-size-xs)",
+                color: "var(--dc-text-muted)",
+              }}
+            >
+              Using backend at <code>{BACKEND_BASE}</code>
+            </p>
+          )}
         </Card>
       </div>
     </div>

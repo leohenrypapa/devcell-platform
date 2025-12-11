@@ -1,6 +1,7 @@
 // frontend/src/features/knowledge/useKnowledgeQuery.ts
 import { useState } from "react";
 import { useUser } from "../../context/UserContext";
+import { BACKEND_BASE } from "../../lib/backend";
 
 export interface KnowledgeSourceChunk {
   document_id: string;
@@ -14,8 +15,7 @@ interface KnowledgeQueryResponse {
   sources: KnowledgeSourceChunk[];
 }
 
-const backendBase =
-  (import.meta as any).env.VITE_BACKEND_BASE_URL || "http://localhost:9000";
+const backendBase = BACKEND_BASE;
 
 export type UseKnowledgeQueryResult = {
   question: string;

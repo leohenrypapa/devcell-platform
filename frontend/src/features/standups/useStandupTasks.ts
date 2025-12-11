@@ -3,10 +3,10 @@ import { useCallback, useEffect, useState } from "react";
 
 import { useUser } from "../../context/UserContext";
 import { useToast } from "../../context/ToastContext";
+import { BACKEND_BASE } from "../../lib/backend";
 import type { Task, TaskListResponse } from "../../lib/tasks";
 
-const backendBase =
-  (import.meta as any).env.VITE_BACKEND_BASE_URL || "http://localhost:9000";
+const backendBase = BACKEND_BASE;
 
 export type UseStandupTasksResult = {
   tasks: Task[];

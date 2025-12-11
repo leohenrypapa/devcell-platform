@@ -1,62 +1,68 @@
 # backend/app/services/user_store.py
+
 from __future__ import annotations
 
-from datetime import datetime, timedelta
-from typing import Optional, Tuple, List
 import hashlib
 import secrets
+import sqlite3
+from datetime import datetime, timedelta, timezone
+from typing import Optional, List
 
 from app.db import get_connection
 from app.schemas.user import UserPublic
-
-# NOTE: for internal tool only; for production use a better password hashing scheme.
-PASSWORD_SALT = "devcell-demo-salt"
-
-# Session lifetime (hours). Tokens older than this are treated as expired.
-SESSION_LIFETIME_HOURS = 8
+from app.core.config import settings
 
 
-def _normalize_username(username: str) -> str:
-    """
-    Normalize username for storage and lookup.
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
-    - Strips leading/trailing whitespace.
-    - (Case is preserved in storage, but lookups are done case-insensitively.)
-    """
-    return username.strip()
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _iso_now() -> str:
+    return _utc_now().isoformat()
 
 
 def _hash_password(raw_password: str) -> str:
-    data = (PASSWORD_SALT + raw_password).encode("utf-8")
-    return hashlib.sha256(data).hexdigest()
-
-
-def _row_to_user(row) -> UserPublic:
     """
-    Convert a DB row to UserPublic.
-    Assumes the 'users' table has (at least):
-      id, username, role, created_at,
-      display_name, job_title, team_name, rank, skills, is_active
-    New columns are allowed to be NULL.
-    """
-    data = dict(row)
+    Simple SHA-256 password hashing for demo purposes.
 
+    NOTE: For production, replace with bcrypt/argon2.
+    """
+    return hashlib.sha256(raw_password.encode("utf-8")).hexdigest()
+
+
+def _row_to_user_public(row: sqlite3.Row) -> UserPublic:
+    """
+    Map a SQLite row from the `users` table to a UserPublic model.
+    """
     return UserPublic(
-        id=data["id"],
-        username=data["username"],
-        role=data["role"],
-        created_at=datetime.fromisoformat(data["created_at"]),
-        display_name=data.get("display_name"),
-        job_title=data.get("job_title"),
-        team_name=data.get("team_name"),
-        rank=data.get("rank"),
-        skills=data.get("skills"),
-        # default to active if column is NULL or missing
-        is_active=bool(data.get("is_active", 1)),
+        id=row["id"],
+        username=row["username"],
+        role=row["role"],
+        display_name=row["display_name"],
+        job_title=row["job_title"],
+        team_name=row["team_name"],
+        rank=row["rank"],
+        skills=row["skills"],
+        is_active=bool(row["is_active"]),
+        created_at=row["created_at"],
     )
 
 
+SESSION_TTL_HOURS = getattr(settings, "SESSION_TTL_HOURS", 8)
+
+
+# ---------------------------------------------------------------------------
+# User queries
+# ---------------------------------------------------------------------------
+
 def count_users() -> int:
+    """
+    Return total number of users in the system (active + inactive).
+    """
     conn = get_connection()
     cur = conn.cursor()
     cur.execute("SELECT COUNT(*) AS c FROM users")
@@ -65,11 +71,13 @@ def count_users() -> int:
     return int(row["c"] if row else 0)
 
 
-def get_user_by_username(username: str) -> Optional[UserPublic]:
+def _get_user_row_by_username_raw(username: str) -> Optional[sqlite3.Row]:
     """
-    Case-insensitive lookup of a user by username.
+    Internal helper: fetch a user row by username (case-insensitive).
     """
-    normalized = _normalize_username(username)
+    normalized = username.strip().lower()
+    if not normalized:
+        return None
 
     conn = get_connection()
     cur = conn.cursor()
@@ -77,50 +85,69 @@ def get_user_by_username(username: str) -> Optional[UserPublic]:
         """
         SELECT *
         FROM users
-        WHERE LOWER(username) = LOWER(?)
+        WHERE lower(username) = ?
         """,
         (normalized,),
     )
     row = cur.fetchone()
     conn.close()
+    return row
+
+
+def get_user_by_username(username: str) -> Optional[UserPublic]:
+    """
+    Public API: fetch user by username (case-insensitive).
+    """
+    row = _get_user_row_by_username_raw(username)
     if row is None:
         return None
-    return _row_to_user(row)
+    return _row_to_user_public(row)
 
 
-def get_user_by_id(user_id: int) -> Optional[UserPublic]:
+def list_users() -> List[UserPublic]:
+    """
+    Return all users ordered by id.
+    """
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("SELECT * FROM users WHERE id = ?", (user_id,))
-    row = cur.fetchone()
+    cur.execute(
+        """
+        SELECT *
+        FROM users
+        ORDER BY id ASC
+        """
+    )
+    rows = cur.fetchall()
     conn.close()
-    if row is None:
-        return None
-    return _row_to_user(row)
+    return [_row_to_user_public(r) for r in rows]
 
+
+# ---------------------------------------------------------------------------
+# User creation / credentials
+# ---------------------------------------------------------------------------
 
 def create_user(
     username: str,
     raw_password: str,
     role: str,
-    *,
     display_name: Optional[str] = None,
     job_title: Optional[str] = None,
     team_name: Optional[str] = None,
     rank: Optional[str] = None,
     skills: Optional[str] = None,
-    is_active: bool = True,
 ) -> UserPublic:
     """
-    Create a new user and return it.
+    Create a new user with hashed password and return the stored UserPublic.
 
-    NOTE: all new users should normally be created with role='user' unless an
-    existing admin is intentionally creating another admin.
+    - Username is normalized to lowercase before storing.
+    - Role must be 'user' or 'admin' (enforced at route level).
     """
-    normalized_username = _normalize_username(username)
+    normalized = username.strip().lower()
+    if not normalized:
+        raise ValueError("Username cannot be empty or whitespace")
+
     password_hash = _hash_password(raw_password)
-    created_at = datetime.now().isoformat()
-    is_active_int = 1 if is_active else 0
+    created_at = _iso_now()
 
     conn = get_connection()
     cur = conn.cursor()
@@ -138,10 +165,10 @@ def create_user(
             skills,
             is_active
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
         """,
         (
-            normalized_username,
+            normalized,
             password_hash,
             role,
             created_at,
@@ -150,7 +177,6 @@ def create_user(
             team_name,
             rank,
             skills,
-            is_active_int,
         ),
     )
     user_id = cur.lastrowid
@@ -160,60 +186,64 @@ def create_user(
     row = cur.fetchone()
     conn.close()
 
-    if row is None:
-        raise RuntimeError("Failed to fetch user after insert")
-
-    return _row_to_user(row)
+    return _row_to_user_public(row)
 
 
 def verify_user_credentials(username: str, raw_password: str) -> Optional[UserPublic]:
     """
-    Verify username/password and return UserPublic if valid.
-    Only returns active users (is_active = 1) if that column exists.
+    Verify username + password and return the corresponding user, or None.
+
+    - Username is matched case-insensitively.
+    - Inactive users (is_active=0) cannot log in.
     """
-    normalized_username = _normalize_username(username)
-    password_hash = _hash_password(raw_password)
-
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute(
-        """
-        SELECT *
-        FROM users
-        WHERE LOWER(username) = LOWER(?)
-          AND password_hash = ?
-        """,
-        (normalized_username, password_hash),
-    )
-    row = cur.fetchone()
-    conn.close()
-
+    row = _get_user_row_by_username_raw(username)
     if row is None:
         return None
 
-    if "is_active" in row.keys() and not row["is_active"]:
-        # user exists but is marked inactive
+    if not bool(row["is_active"]):
+        # Inactive accounts cannot log in
         return None
 
-    return _row_to_user(row)
+    expected_hash = row["password_hash"]
+    candidate_hash = _hash_password(raw_password)
+    if candidate_hash != expected_hash:
+        return None
 
+    return _row_to_user_public(row)
+
+
+# ---------------------------------------------------------------------------
+# Sessions (opaque tokens)
+# ---------------------------------------------------------------------------
 
 def create_session(user_id: int) -> str:
     """
-    Create a new random session token for a user and store it in the sessions table.
+    Create a new session for the given user and return the opaque token.
+
+    Multiple sessions per user are allowed (multi-device login).
     """
-    token = secrets.token_urlsafe(32)
-    created_at = datetime.now().isoformat()
+    token = None
+    created_at = _iso_now()
 
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute(
-        """
-        INSERT INTO sessions (user_id, token, created_at)
-        VALUES (?, ?, ?)
-        """,
-        (user_id, token, created_at),
-    )
+
+    # Ensure token uniqueness (very low collision probability, but safe loop)
+    while token is None:
+        candidate = secrets.token_urlsafe(32)
+        try:
+            cur.execute(
+                """
+                INSERT INTO sessions (user_id, token, created_at)
+                VALUES (?, ?, ?)
+                """,
+                (user_id, candidate, created_at),
+            )
+            token = candidate
+        except sqlite3.IntegrityError:
+            # Token collision: generate a new one
+            token = None
+
     conn.commit()
     conn.close()
     return token
@@ -221,7 +251,7 @@ def create_session(user_id: int) -> str:
 
 def delete_session(token: str) -> None:
     """
-    Delete a single session by its token. Used by /auth/logout.
+    Delete a single session by its token. Idempotent.
     """
     conn = get_connection()
     cur = conn.cursor()
@@ -230,53 +260,34 @@ def delete_session(token: str) -> None:
     conn.close()
 
 
-def create_user_and_session(
-    username: str,
-    raw_password: str,
-    role: str = "user",
-    *,
-    display_name: Optional[str] = None,
-    job_title: Optional[str] = None,
-    team_name: Optional[str] = None,
-    rank: Optional[str] = None,
-    skills: Optional[str] = None,
-    is_active: bool = True,
-) -> Tuple[UserPublic, str]:
+def delete_all_sessions_for_user(user_id: int) -> None:
     """
-    Helper used by /register or admin-created users who should be logged in immediately.
-    Creates a user, then a session, and returns (user, token).
+    Delete all sessions belonging to the given user. Idempotent.
     """
-    user = create_user(
-        username=username,
-        raw_password=raw_password,
-        role=role,
-        display_name=display_name,
-        job_title=job_title,
-        team_name=team_name,
-        rank=rank,
-        skills=skills,
-        is_active=is_active,
-    )
-    token = create_session(user.id)
-    return user, token
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
+    conn.commit()
+    conn.close()
 
 
 def get_user_by_token(token: str) -> Optional[UserPublic]:
     """
-    Lookup a user from a session token.
+    Resolve a user from the given session token.
 
-    - Joins sessions and users.
-    - Enforces a simple max lifetime based on sessions.created_at.
-    - Returns None if token is missing or expired.
+    - Returns None if the token does not exist.
+    - Enforces expiration using SESSION_TTL_HOURS.
+    - Deletes expired session rows eagerly.
+    - Returns None if the corresponding user is inactive.
     """
-    now = datetime.now()
-    lifetime = timedelta(hours=SESSION_LIFETIME_HOURS)
-
     conn = get_connection()
     cur = conn.cursor()
     cur.execute(
         """
-        SELECT u.*, s.created_at AS session_created_at
+        SELECT
+            s.id AS session_id,
+            s.created_at AS session_created_at,
+            u.*
         FROM sessions s
         JOIN users u ON u.id = s.user_id
         WHERE s.token = ?
@@ -284,67 +295,147 @@ def get_user_by_token(token: str) -> Optional[UserPublic]:
         (token,),
     )
     row = cur.fetchone()
-
     if row is None:
         conn.close()
         return None
 
-    data = dict(row)
-    session_created_str = data.get("session_created_at")
+    # Check session expiration
+    session_id = row["session_id"]
+    session_created_at_str = row["session_created_at"]
     try:
-        session_created = datetime.fromisoformat(session_created_str)
+        session_created_at = datetime.fromisoformat(session_created_at_str)
     except Exception:
-        # If parsing fails, treat token as invalid.
-        cur.execute("DELETE FROM sessions WHERE token = ?", (token,))
+        # If parsing fails, treat the session as invalid/expired
+        cur.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
         conn.commit()
         conn.close()
         return None
 
-    if now - session_created > lifetime:
-        # Token expired: clean up and reject.
-        cur.execute("DELETE FROM sessions WHERE token = ?", (token,))
+    now = _utc_now()
+    ttl = timedelta(hours=SESSION_TTL_HOURS)
+    if now - session_created_at > ttl:
+        # Session expired — delete and reject
+        cur.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
         conn.commit()
         conn.close()
         return None
 
+    if not bool(row["is_active"]):
+        # User is inactive; treat as invalid token
+        conn.close()
+        return None
+
+    user = _row_to_user_public(row)
     conn.close()
-    return _row_to_user(row)
+    return user
 
 
-def list_users() -> List[UserPublic]:
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT * FROM users ORDER BY created_at ASC")
-    rows = cur.fetchall()
-    conn.close()
-    return [_row_to_user(row) for row in rows]
-
-
-def update_user_profile(
-    user_id: int,
-    *,
-    display_name: Optional[str] = None,
-    job_title: Optional[str] = None,
-    team_name: Optional[str] = None,
-    rank: Optional[str] = None,
-    skills: Optional[str] = None,
-) -> UserPublic:
+def list_user_sessions(user_id: int) -> List[dict]:
     """
-    Used when a user updates their own profile fields.
+    List sessions for a user without exposing token values.
+
+    Returns a list of dicts:
+        {
+          "id": session_id,
+          "created_at": iso_string,
+          "age_hours": float,
+          "expires_in_hours": float,
+          "is_expired": bool
+        }
     """
     conn = get_connection()
     cur = conn.cursor()
     cur.execute(
         """
-        UPDATE users
-        SET display_name = ?,
-            job_title = ?,
-            team_name = ?,
-            rank = ?,
-            skills = ?
-        WHERE id = ?
+        SELECT id, created_at
+        FROM sessions
+        WHERE user_id = ?
+        ORDER BY created_at DESC
         """,
-        (display_name, job_title, team_name, rank, skills, user_id),
+        (user_id,),
+    )
+    rows = cur.fetchall()
+    conn.close()
+
+    now = _utc_now()
+    ttl = timedelta(hours=SESSION_TTL_HOURS)
+    sessions: List[dict] = []
+
+    for r in rows:
+        created_str = r["created_at"]
+        try:
+            created_dt = datetime.fromisoformat(created_str)
+        except Exception:
+            created_dt = now  # treat as now for safety, mark as non-expired
+
+        age = now - created_dt
+        age_hours = age.total_seconds() / 3600.0
+        is_expired = age > ttl
+        expires_in_hours = max(SESSION_TTL_HOURS - age_hours, 0.0)
+
+        sessions.append(
+            {
+                "id": r["id"],
+                "created_at": created_str,
+                "age_hours": age_hours,
+                "expires_in_hours": expires_in_hours,
+                "is_expired": is_expired,
+            }
+        )
+
+    return sessions
+
+
+# ---------------------------------------------------------------------------
+# Profile / password updates
+# ---------------------------------------------------------------------------
+
+def update_user_profile(
+    user_id: int,
+    display_name: Optional[str],
+    job_title: Optional[str],
+    team_name: Optional[str],
+    rank: Optional[str],
+    skills: Optional[str],
+) -> Optional[UserPublic]:
+    """
+    Update a user's profile fields.
+
+    Returns the updated UserPublic, or None if user does not exist.
+    """
+    fields = {
+        "display_name": display_name,
+        "job_title": job_title,
+        "team_name": team_name,
+        "rank": rank,
+        "skills": skills,
+    }
+    # Filter out None values (only update provided fields)
+    updates = {k: v for k, v in fields.items() if v is not None}
+
+    if not updates:
+        # Nothing to update; just return current user
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+        row = cur.fetchone()
+        conn.close()
+        if row is None:
+            return None
+        return _row_to_user_public(row)
+
+    set_clause = ", ".join(f"{col} = :{col}" for col in updates.keys())
+    updates["user_id"] = user_id
+
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        f"""
+        UPDATE users
+        SET {set_clause}
+        WHERE id = :user_id
+        """,
+        updates,
     )
     conn.commit()
 
@@ -352,9 +443,8 @@ def update_user_profile(
     row = cur.fetchone()
     conn.close()
     if row is None:
-        raise RuntimeError("User not found after profile update")
-
-    return _row_to_user(row)
+        return None
+    return _row_to_user_public(row)
 
 
 def change_user_password(
@@ -363,13 +453,18 @@ def change_user_password(
     new_password: str,
 ) -> bool:
     """
-    Change a user's password if the old password is correct.
-    Returns True on success, False if old password is wrong or user not found.
+    Change a user's password after verifying the old password.
+
+    Returns True on success, False if old_password is incorrect or user missing.
     """
     conn = get_connection()
     cur = conn.cursor()
     cur.execute(
-        "SELECT password_hash FROM users WHERE id = ?",
+        """
+        SELECT password_hash
+        FROM users
+        WHERE id = ?
+        """,
         (user_id,),
     )
     row = cur.fetchone()
@@ -384,7 +479,11 @@ def change_user_password(
 
     new_hash = _hash_password(new_password)
     cur.execute(
-        "UPDATE users SET password_hash = ? WHERE id = ?",
+        """
+        UPDATE users
+        SET password_hash = ?
+        WHERE id = ?
+        """,
         (new_hash, user_id),
     )
     conn.commit()
@@ -392,146 +491,140 @@ def change_user_password(
     return True
 
 
+# ---------------------------------------------------------------------------
+# Admin updates & safeguards
+# ---------------------------------------------------------------------------
+
+def _count_active_admins_excluding(user_id: Optional[int] = None) -> int:
+    """
+    Count active admin users, optionally excluding a given user_id.
+    """
+    conn = get_connection()
+    cur = conn.cursor()
+    if user_id is not None:
+        cur.execute(
+            """
+            SELECT COUNT(*) AS c
+            FROM users
+            WHERE role = 'admin' AND is_active = 1 AND id != ?
+            """,
+            (user_id,),
+        )
+    else:
+        cur.execute(
+            """
+            SELECT COUNT(*) AS c
+            FROM users
+            WHERE role = 'admin' AND is_active = 1
+            """
+        )
+    row = cur.fetchone()
+    conn.close()
+    return int(row["c"] if row else 0)
+
+
 def admin_update_user(
     user_id: int,
-    *,
-    display_name: Optional[str] = None,
-    job_title: Optional[str] = None,
-    team_name: Optional[str] = None,
-    rank: Optional[str] = None,
-    skills: Optional[str] = None,
-    role: Optional[str] = None,
-    is_active: Optional[bool] = None,
+    display_name: Optional[str],
+    job_title: Optional[str],
+    team_name: Optional[str],
+    rank: Optional[str],
+    skills: Optional[str],
+    role: Optional[str],
+    is_active: Optional[bool],
 ) -> Optional[UserPublic]:
     """
-    Admin-only update of another user's fields (including role and is_active).
+    Admin-only update of a user.
 
-    - Prevents deactivating or demoting the last active admin account.
-    - Returns updated UserPublic, or None if user_id does not exist.
-
-    Raises:
-        ValueError: if attempting to remove the last active admin.
+    - Can update profile fields
+    - Can change role (user/admin)
+    - Can toggle is_active
+    - Enforces 'cannot remove/deactivate last active admin'
     """
     conn = get_connection()
     cur = conn.cursor()
     cur.execute("SELECT * FROM users WHERE id = ?", (user_id,))
-    row = cur.fetchone()
-    if row is None:
+    existing = cur.fetchone()
+    if existing is None:
         conn.close()
         return None
 
-    data = dict(row)
-    current_role = data["role"]
-    # default to active if column is NULL or missing
-    current_is_active = bool(data.get("is_active", 1))
+    current_role = existing["role"]
+    current_is_active = bool(existing["is_active"])
 
-    is_current_admin = current_role == "admin" and current_is_active
+    new_role = role if role is not None else current_role
+    new_is_active = is_active if is_active is not None else current_is_active
 
-    # Determine if this update would remove admin status or deactivate the user.
-    will_no_longer_be_admin = False
-    if role is not None and role != "admin":
-        will_no_longer_be_admin = True
-    if is_active is not None and not is_active:
-        will_no_longer_be_admin = True
+    # Safeguard: cannot remove/deactivate the last active admin
+    if current_role == "admin" and current_is_active:
+        if new_role != "admin" or not new_is_active:
+            if _count_active_admins_excluding(user_id=user_id) == 0:
+                conn.close()
+                raise ValueError(
+                    "Cannot remove or deactivate the last active admin user."
+                )
 
-    if is_current_admin and will_no_longer_be_admin:
-        # Check how many active admins exist.
-        cur.execute(
-            "SELECT COUNT(*) AS c FROM users WHERE role = 'admin' AND is_active = 1"
-        )
-        count_row = cur.fetchone()
-        active_admins = int(count_row["c"] if count_row else 0)
+    fields = {
+        "display_name": display_name,
+        "job_title": job_title,
+        "team_name": team_name,
+        "rank": rank,
+        "skills": skills,
+        "role": new_role,
+        "is_active": int(new_is_active),
+    }
 
-        if active_admins <= 1:
-            conn.close()
-            raise ValueError(
-                "Cannot remove or deactivate the last active admin user."
-            )
+    set_clause = ", ".join(f"{col} = :{col}" for col in fields.keys())
+    fields["user_id"] = user_id
 
-    fields = []
-    params: List[object] = []
+    cur.execute(
+        f"""
+        UPDATE users
+        SET {set_clause}
+        WHERE id = :user_id
+        """,
+        fields,
+    )
+    conn.commit()
 
-    if display_name is not None:
-        fields.append("display_name = ?")
-        params.append(display_name)
-
-    if job_title is not None:
-        fields.append("job_title = ?")
-        params.append(job_title)
-
-    if team_name is not None:
-        fields.append("team_name = ?")
-        params.append(team_name)
-
-    if rank is not None:
-        fields.append("rank = ?")
-        params.append(rank)
-
-    if skills is not None:
-        fields.append("skills = ?")
-        params.append(skills)
-
-    if role is not None:
-        fields.append("role = ?")
-        params.append(role)
-
-    if is_active is not None:
-        fields.append("is_active = ?")
-        params.append(1 if is_active else 0)
-
-    if fields:
-        sql = "UPDATE users SET " + ", ".join(fields) + " WHERE id = ?"
-        params.append(user_id)
-        cur.execute(sql, tuple(params))
-        conn.commit()
-
-    # Re-fetch
     cur.execute("SELECT * FROM users WHERE id = ?", (user_id,))
-    updated_row = cur.fetchone()
+    updated = cur.fetchone()
     conn.close()
-    if updated_row is None:
+    if updated is None:
         return None
+    return _row_to_user_public(updated)
 
-    return _row_to_user(updated_row)
 
+# ---------------------------------------------------------------------------
+# Startup helper: ensure default admin
+# ---------------------------------------------------------------------------
 
 def ensure_default_admin() -> None:
     """
-    Ensure there is at least one admin account.
+    Ensure there is at least one active admin user.
 
-    If no admin exists, create a default one:
-      - username: admin
-      - password: password
+    If no active admin exists, creates:
+      username: admin
+      password: password
+      role: admin
 
-    This is intended for dev/demo/reset scenarios only.
+    This is a bootstrap convenience for demos; change the password immediately.
     """
-    try:
-        conn = get_connection()
-        cur = conn.cursor()
-        cur.execute("SELECT COUNT(*) AS c FROM users WHERE role = 'admin'")
-        row = cur.fetchone()
-        conn.close()
-    except Exception:
-        # If the table doesn't exist yet or some other error occurs,
-        # just skip silently so startup doesn't crash.
+    if _count_active_admins_excluding(user_id=None) > 0:
         return
 
-    count = int(row["c"] if row else 0)
-    if count > 0:
+    existing_admin = get_user_by_username("admin")
+    if existing_admin is not None and existing_admin.is_active:
         return
 
-    try:
-        create_user(
-            username="admin",
-            raw_password="password",
-            role="admin",
-            display_name="DevCell Admin",
-            job_title="Admin",
-            team_name="DevCell",
-            rank=None,
-            skills=None,
-            is_active=True,
-        )
-    except Exception:
-        # Don't crash app startup if this fails; can be corrected manually.
-        return
+    create_user(
+        username="admin",
+        raw_password="password",
+        role="admin",
+        display_name="DevCell Admin",
+        job_title="DevCell Platform Admin",
+        team_name="DevCell",
+        rank=None,
+        skills=None,
+    )
+    print("[AUTH] Created default admin user: username=admin, password=password")

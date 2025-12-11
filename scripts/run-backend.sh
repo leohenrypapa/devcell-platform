@@ -16,4 +16,4 @@ fi
 # Run uvicorn from backend directory so `app.main` resolves correctly
 cd backend
 
-exec uvicorn app.main:app --reload --host 0.0.0.0 --port 9000
+exec uvicorn app.main:app --host 0.0.0.0 --port 9000 --reload

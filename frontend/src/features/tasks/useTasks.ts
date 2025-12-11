@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { useToast } from "../../context/ToastContext";
 import { useUser } from "../../context/UserContext";
+import { BACKEND_BASE } from "../../lib/backend";
 import type {
   Project,
   ProjectListResponse,
@@ -13,8 +14,7 @@ import type {
 } from "../../lib/tasks";
 import { shiftIsoDateByDays } from "../../lib/tasks";
 
-const backendBase =
-  (import.meta as any).env.VITE_BACKEND_BASE_URL || "http://localhost:9000";
+const backendBase = BACKEND_BASE;
 
 export type UseTasksArgs = {
   mineOnly: boolean;

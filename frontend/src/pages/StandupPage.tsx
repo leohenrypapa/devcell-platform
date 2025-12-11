@@ -4,6 +4,7 @@ import { useLocation } from "react-router-dom";
 
 import { useUser } from "../context/UserContext";
 import { useToast } from "../context/ToastContext";
+import { BACKEND_BASE } from "../lib/backend";
 
 import type { Project } from "../lib/tasks";
 import { useStandupEntries } from "../features/standups/useStandupEntries";
@@ -15,8 +16,7 @@ import StandupMyTasksPanel from "../features/standups/StandupMyTasksPanel";
 import StandupSummarySection from "../features/standups/StandupSummarySection";
 import StandupTaskConvertModal from "../components/StandupTaskConvertModal";
 
-const backendBase =
-  (import.meta as any).env.VITE_BACKEND_BASE_URL || "http://localhost:9000";
+const backendBase = BACKEND_BASE;
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
 

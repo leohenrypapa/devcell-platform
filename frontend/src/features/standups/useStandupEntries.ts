@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { useUser } from "../../context/UserContext";
 import { useToast } from "../../context/ToastContext";
+import { BACKEND_BASE } from "../../lib/backend";
 import type { StandupEntry } from "../../lib/standups";
 import type { Task, TaskListResponse } from "../../lib/tasks";
 
@@ -35,8 +36,7 @@ export type UseStandupEntriesResult = {
   deleteStandup: (id: number) => Promise<void>;
 };
 
-const backendBase =
-  (import.meta as any).env.VITE_BACKEND_BASE_URL || "http://localhost:9000";
+const backendBase = BACKEND_BASE;
 
 export const useStandupEntries = (
   selectedDate: string,

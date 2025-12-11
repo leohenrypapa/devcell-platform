@@ -1,0 +1,310 @@
+/* Multi-Agent SDLC Demo styling */
+
+.ma-page {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.ma-header h1 {
+  margin: 0;
+  font-size: 1.6rem;
+}
+
+.ma-subtitle {
+  margin: 0.25rem 0 0;
+  color: #555;
+  max-width: 52rem;
+}
+
+.ma-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 2.5fr) minmax(0, 1.5fr);
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.ma-controls-left {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.ma-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.ma-field label {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.ma-field textarea,
+.ma-field select {
+  font-family: inherit;
+  font-size: 0.9rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+}
+
+.ma-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.ma-actions button {
+  padding: 0.4rem 0.9rem;
+  font-size: 0.9rem;
+  border-radius: 4px;
+  border: 1px solid #1b4ed8;
+  background: #2457e0;
+  color: white;
+  cursor: pointer;
+}
+
+.ma-actions button:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.ma-error {
+  color: #b00020;
+  font-size: 0.85rem;
+}
+
+.ma-controls-right .ma-callout {
+  border-radius: 6px;
+  border: 1px solid #dde4ff;
+  background: #f5f7ff;
+  padding: 0.75rem 0.9rem;
+}
+
+.ma-callout-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  margin-bottom: 0.35rem;
+}
+
+.ma-callout-body p {
+  margin: 0.25rem 0;
+  font-size: 0.85rem;
+}
+
+/* Main layout */
+
+.ma-main-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1.5fr);
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.ma-left,
+.ma-right {
+  border-radius: 6px;
+  border: 1px solid #ddd;
+  background: #fafafa;
+  padding: 0.75rem;
+}
+
+.ma-left h2,
+.ma-right h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.05rem;
+}
+
+/* Pipeline */
+
+.ma-pipeline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.ma-pipeline-step-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.ma-pipeline-connector {
+  width: 32px;
+  height: 2px;
+  background: #ccc;
+}
+
+.ma-pipeline-step {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid #ddd;
+  background: white;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  max-width: 260px;
+}
+
+.ma-step-circle {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  border: 2px solid #999;
+  color: #555;
+}
+
+.ma-step-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.ma-step-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.ma-step-description {
+  font-size: 0.75rem;
+  color: #555;
+}
+
+.ma-step-status {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #777;
+}
+
+/* Completed / active states */
+
+.ma-step-completed .ma-step-circle {
+  border-color: #2563eb;
+  background: #2563eb;
+  color: white;
+}
+
+.ma-step-completed {
+  border-color: #2563eb;
+}
+
+.ma-step-active {
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.25);
+}
+
+.ma-step-active .ma-step-status {
+  color: #2563eb;
+}
+
+/* Leadership cards */
+
+.ma-leadership-placeholder {
+  font-size: 0.85rem;
+  color: #666;
+  font-style: italic;
+}
+
+.ma-leadership-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.ma-card {
+  border-radius: 6px;
+  border: 1px solid #ddd;
+  background: white;
+  padding: 0.5rem 0.6rem;
+}
+
+.ma-card-header {
+  margin-bottom: 0.25rem;
+}
+
+.ma-card-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.ma-card-body pre {
+  margin: 0;
+  font-family: "SF Mono", "JetBrains Mono", monospace;
+  font-size: 0.8rem;
+  white-space: pre-wrap;
+}
+
+/* Transcript */
+
+.ma-transcript {
+  margin-top: 0.75rem;
+  border-radius: 6px;
+  border: 1px solid #e0e0e0;
+  background: #ffffff;
+  max-height: 340px;
+  overflow-y: auto;
+}
+
+.ma-transcript-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid #eee;
+  font-size: 0.85rem;
+  font-weight: 600;
+  background: #fafafa;
+}
+
+.ma-transcript-entry {
+  padding: 0.4rem 0.5rem;
+  border-top: 1px solid #f0f0f0;
+}
+
+.ma-transcript-agent {
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin-bottom: 0.15rem;
+  color: #2563eb;
+}
+
+.ma-transcript-message {
+  margin: 0;
+  font-family: "SF Mono", "JetBrains Mono", monospace;
+  font-size: 0.8rem;
+  white-space: pre-wrap;
+}
+
+/* Toggle button */
+
+.ma-toggle-details {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.8rem;
+  color: #2563eb;
+  cursor: pointer;
+}
+
+/* Responsive tweaks */
+
+@media (max-width: 1024px) {
+  .ma-controls,
+  .ma-main-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ma-main-layout {
+    gap: 0.75rem;
+  }
+}

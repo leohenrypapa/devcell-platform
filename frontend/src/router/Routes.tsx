@@ -10,6 +10,7 @@ import ProjectsPage from "../pages/ProjectsPage";
 import StandupPage from "../pages/StandupPage";
 import TasksPage from "../pages/TasksPage";
 import TrainingPage from "../pages/TrainingPage";
+import MultiAgentSdlcDemoPage from "../pages/MultiAgentSdlcDemoPage";
 
 export type AppRoute = {
   path: string;
@@ -28,4 +29,5 @@ export const appRoutes: AppRoute[] = [
   { path: "/training", element: <TrainingPage />, protected: true },
   { path: "/review", element: <CodeReviewPage />, protected: true },
   { path: "/admin", element: <AdminPage />, protected: true, adminOnly: true },
+  { path: "/multi-agent-sdlc", element: <MultiAgentSdlcDemoPage />, protected: true, adminOnly: false},
 ];

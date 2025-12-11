@@ -13,6 +13,7 @@ from app.api.routes import (
     auth,
     tasks,
     training,
+    agents,
 )
 
 from app.db import init_db
@@ -48,6 +49,7 @@ def create_app() -> FastAPI:
     app.include_router(auth.router, prefix=api_prefix)
     app.include_router(tasks.router, prefix=api_prefix)
     app.include_router(training.router, prefix=api_prefix)
+    app.include_router(agents.router, prefix=f"{api_prefix}/agents", tags=["agents"])
 
 
     # -------------------------

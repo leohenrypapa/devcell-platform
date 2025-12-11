@@ -26,8 +26,11 @@ from app.services.user_store import (
     change_user_password,
     admin_update_user,
     delete_session,
+    delete_all_sessions_for_user,
+    list_user_sessions,
 )
 from app.services.auth_service import get_current_user, require_admin, security
+from app.db import DB_PATH, get_connection  # 👈 for debug endpoint
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -138,6 +141,39 @@ def logout(
     token = credentials.credentials
     delete_session(token)
     return {"detail": "Logged out successfully"}
+
+
+@router.post("/logout_all")
+def logout_all(
+    current_user: UserPublic = Depends(get_current_user),
+):
+    """
+    Logout ALL sessions for the current user (all devices/browsers).
+
+    - Requires a valid Bearer token.
+    - Deletes all session rows for the current user.
+    """
+    delete_all_sessions_for_user(current_user.id)
+    return {"detail": "Logged out from all devices"}
+
+
+@router.get("/sessions/me")
+def list_my_sessions(
+    current_user: UserPublic = Depends(get_current_user),
+):
+    """
+    List the current user's sessions without exposing token values.
+
+    Returns metadata:
+    - id
+    - created_at
+    - age_hours
+    - expires_in_hours
+    - is_expired
+    """
+    return {
+        "items": list_user_sessions(current_user.id)
+    }
 
 
 @router.get("/me", response_model=UserPublic)
@@ -293,3 +329,39 @@ def admin_create_user(
         skills=payload.skills,
     )
     return user
+
+
+@router.get("/debug")
+def auth_debug():
+    """
+    Debug endpoint to help verify auth wiring.
+
+    Returns:
+    - DB path in use
+    - User count
+    - Session count
+    """
+    conn = get_connection()
+    cur = conn.cursor()
+
+    try:
+        cur.execute("SELECT COUNT(*) AS c FROM users")
+        user_row = cur.fetchone()
+        user_count = int(user_row["c"] if user_row else 0)
+    except Exception:
+        user_count = -1  # indicates error
+
+    try:
+        cur.execute("SELECT COUNT(*) AS c FROM sessions")
+        sess_row = cur.fetchone()
+        session_count = int(sess_row["c"] if sess_row else 0)
+    except Exception:
+        session_count = -1
+
+    conn.close()
+
+    return {
+        "db_path": str(DB_PATH),
+        "user_count": user_count,
+        "session_count": session_count,
+    }

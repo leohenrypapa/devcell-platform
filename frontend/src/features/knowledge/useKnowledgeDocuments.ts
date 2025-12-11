@@ -1,6 +1,7 @@
 // frontend/src/features/knowledge/useKnowledgeDocuments.ts
 import { useEffect, useState } from "react";
 import { useUser } from "../../context/UserContext";
+import { BACKEND_BASE } from "../../lib/backend";
 
 export interface KnowledgeDocument {
   id: string;
@@ -23,8 +24,7 @@ function extractRawTitle(displayTitle: string): string {
   return displayTitle.slice(closing + 1).trim();
 }
 
-const backendBase =
-  (import.meta as any).env.VITE_BACKEND_BASE_URL || "http://localhost:9000";
+const backendBase = BACKEND_BASE;
 
 export type UseKnowledgeDocumentsResult = {
   documents: KnowledgeDocument[];
